@@ -73,6 +73,11 @@ for (const m of ['PUT','PATCH','DELETE']) {
   ok(m+' request works',out(run,'a')?.body?.method===m,run.error);
 }
 
+// YouTube-style nested JSON body with booleans and exact templates
+run=await go('yt-shape',[T,N('s','transform','S',{mapping:{videoId:'abc',publishAt:'2026-10-23T10:00:00+05:30'}}),H('p','put',{method:'PUT',url:U+'/mock/echo?part=status',body:{id:'{{steps.s.output.videoId}}',status:{privacyStatus:'private',publishAt:'{{steps.s.output.publishAt}}',selfDeclaredMadeForKids:false}}})],[E('1','t','s'),E('2','s','p')]);
+b=out(run,'p')?.body?.body||{};
+ok('nested JSON PUT keeps booleans + templates',b.id==='abc'&&b.status?.selfDeclaredMadeForKids===false&&b.status?.publishAt==='2026-10-23T10:00:00+05:30',JSON.stringify(b));
+
 // 6 conditions: every operator, string/number, missing data
 const condCase=async(name,cfg)=>{const r=await go('c-'+name,[T,H('a','u',{url:U+'/mock/users/1'}),N('c','condition','C',cfg),N('y','transform','Y',{value:'yes'}),N('n','transform','N',{value:'no'})],[E('1','t','a'),E('2','a','c'),E('3','c','y','true'),E('4','c','n','false')]);return {yes:st(r,'y'),no:st(r,'n'),run:r}};
 const L='{{steps.a.output.body.tier}}';

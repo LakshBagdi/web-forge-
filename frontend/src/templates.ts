@@ -15,6 +15,13 @@ export function meetDefaults() {
   return { start: localStamp(s), end: localStamp(e), timeZone: ({ 'Asia/Calcutta': 'Asia/Kolkata' } as Record<string, string>)[Intl.DateTimeFormat().resolvedOptions().timeZone] || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' };
 }
 
+/** RFC 3339 with the browser's UTC offset, e.g. 2026-10-23T10:00:00+05:30 (what YouTube wants for a scheduled publish time). */
+export function publishDefault() {
+  const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0);
+  const off = -d.getTimezoneOffset(); const a = Math.abs(off); const z = (n: number) => String(n).padStart(2, '0');
+  return `${localStamp(d)}${off >= 0 ? '+' : '-'}${z(Math.floor(a / 60))}:${z(a % 60)}`;
+}
+
 const SETTINGS_LABEL = '⚙ Settings (fill in)';
 const H = (id: string, label: string, x: number, y: number, config: any, extra: any = {}) => ({ id, type: 'http', label, position: { x, y }, config: { headers: {}, bodyType: 'json', failOnErrorStatus: true, ...config }, ...extra });
 const T = (id: string, label: string, x: number, y: number, mapping: any) => ({ id, type: 'transform', label, position: { x, y }, config: { mapping } });
@@ -59,7 +66,40 @@ function youtubeTemplate(target: 'discord' | 'x'): Template {
 
 export const TEMPLATES: Template[] = [
   youtubeTemplate('discord'),
-  youtubeTemplate('x'),
+  {
+    key: 'yt-schedule', group: 'real', emoji: '🎬', name: 'Schedule a YouTube video to go public',
+    blurb: 'Takes a video you already uploaded (private) and sets the exact date and time it goes public. Optionally tells your Discord.',
+    needs: 'a Google login with the YouTube scope (Credentials → Connect with Google, Scope box: https://www.googleapis.com/auth/youtube.force-ssl) and the YouTube Data API v3 turned on',
+    hint: 'In ⚙ Settings paste the video id (the part after v= in its link) and the publish time (YYYY-MM-DDTHH:MM:SS+05:30 — change the +05:30 if you are in another time zone). The video must be uploaded as Private and not published yet. Choose your Google login in the "Authentication" box, Save, Run. Discord link is optional.',
+    graph: {
+      nodes: [
+        trig(60, 40),
+        T('settings', SETTINGS_LABEL, 330, 40, { videoId: 'PASTE_VIDEO_ID', publishAt: publishDefault(), discordUrl: '' }),
+        H('schedule', 'Schedule on YouTube (pick Google login)', 600, 40, { method: 'PUT', url: 'https://www.googleapis.com/youtube/v3/videos?part=status',
+          body: { id: '{{steps.settings.output.videoId}}', status: { privacyStatus: 'private', publishAt: '{{steps.settings.output.publishAt}}', selfDeclaredMadeForKids: false } } },
+          { retry: { maxAttempts: 2, backoffMs: 1500 } }),
+        { id: 'cond', type: 'condition', label: 'Discord link given?', position: { x: 600, y: 200 }, config: { left: '{{steps.settings.output.discordUrl}}', operator: 'truthy', right: '' } },
+        H('share', 'Tell Discord', 870, 200, { method: 'POST', url: '{{steps.settings.output.discordUrl}}', bodyMode: 'message', messageFormat: 'discord',
+          message: '🎬 Scheduled! https://youtu.be/{{steps.settings.output.videoId}} goes public at {{steps.settings.output.publishAt}}' }),
+      ],
+      edges: [{ id: 'e1', source: 'trigger', target: 'settings' }, { id: 'e2', source: 'settings', target: 'schedule' }, { id: 'e3', source: 'schedule', target: 'cond' }, { id: 'e4', source: 'cond', target: 'share', sourceHandle: 'true' }],
+    },
+  },
+  {
+    key: 'yt-comment', group: 'real', emoji: '💬', name: 'Post a comment on a YouTube video',
+    blurb: 'Posts a comment on any YouTube video from your account — edit the video id and text in ⚙ Settings, Run. Add a schedule to post it later.',
+    needs: 'a Google login with the YouTube scope (Credentials → Connect with Google, Scope box: https://www.googleapis.com/auth/youtube.force-ssl) and the YouTube Data API v3 turned on',
+    hint: 'In ⚙ Settings paste the video id (the part after v= in the video link) and your comment. Choose your Google login in the "Authentication" box of the comment node, Save, Run. Check the video\'s comments afterwards.',
+    graph: {
+      nodes: [
+        trig(),
+        T('settings', SETTINGS_LABEL, 300, 160, { videoId: 'PASTE_VIDEO_ID', comment: 'Great video! 👏 (posted by FlowForge)' }),
+        H('comment', 'Post comment (pick Google login)', 580, 160, { method: 'POST', url: 'https://www.googleapis.com/youtube/v3/commentThreads?part=snippet',
+          body: { snippet: { videoId: '{{steps.settings.output.videoId}}', topLevelComment: { snippet: { textOriginal: '{{steps.settings.output.comment}}' } } } } }),
+      ],
+      edges: [{ id: 'e1', source: 'trigger', target: 'settings' }, { id: 'e2', source: 'settings', target: 'comment' }],
+    },
+  },
   {
     key: 'meet-real', group: 'real', emoji: '📅', name: 'Create a real Google Meet (at a set time)',
     blurb: 'Creates a Google Calendar event with a Meet link for the date and time you choose in ⚙ Settings, and (optionally) posts the link to Discord.',

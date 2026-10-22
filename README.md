@@ -107,7 +107,7 @@ A workflow can start in four ways, and talk to **any** service that has an HTTP 
 
 The Workflows page has **ready-made templates**:
 
-- **Real services** (paste your keys into the one `⚙ Settings` node, Save, Run): *New YouTube video → Discord*, *New YouTube video → post on X*, *Create a real Google Meet (at a set time)*, *Post a tweet on X*, *Webhook → Discord message*. A workflow that still contains a `PASTE_...` placeholder refuses to run, so nothing half-configured can fire.
+- **Real services** (paste your keys into the one `⚙ Settings` node, Save, Run): *New YouTube video → Discord*, *Schedule a YouTube video to go public*, *Post a comment on a YouTube video*, *Create a real Google Meet (at a set time)*, *Post a tweet on X*, *Webhook → Discord message*. A workflow that still contains a `PASTE_...` placeholder refuses to run, so nothing half-configured can fire.
 - **Instant demos** (run offline against built-in demo endpoints): Meet at a set time, new video → post, webhook → alert.
 
 API keys and webhook secrets in URLs are masked in run logs. To get an X refresh token run `node scripts/x-get-refresh-token.mjs` (see the file header).
