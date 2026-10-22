@@ -55,7 +55,7 @@ Goal: FlowForge creates a Google Calendar event with a Meet link at a time you c
 
 *Fallback:* under "Advanced" on that page you can still paste a refresh token you got elsewhere (e.g. Google OAuth Playground).
 
-**C7. Use the template**
+**C7. Use the template** (the meeting is created for the start/end time you put in ⚙ Settings; Discord is optional — leave `discordUrl` empty to skip it)
 1. Home → template **Create a real Google Meet (at a set time)**.
 2. Open the **⚙ Settings** step: set `title` (meeting name) and `discordUrl` (Discord channel ⚙ → Integrations → Webhooks → New Webhook → Copy URL).
 3. Click the **Create Meet** step → **Authentication** → choose `My Google (oauth2)`.

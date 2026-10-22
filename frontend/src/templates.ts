@@ -4,6 +4,17 @@ export interface Template { key: string; group: 'real' | 'demo'; name: string; e
 
 const trig = (x = 60, y = 160) => ({ id: 'trigger', type: 'trigger', label: 'Start', position: { x, y }, config: {} });
 
+/** "2026-10-23T10:00:00" in the browser's own clock (what Google Calendar wants together with a timeZone name). */
+export function localStamp(d: Date) {
+  const z = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}:00`;
+}
+export function meetDefaults() {
+  const s = new Date(); s.setDate(s.getDate() + 1); s.setHours(10, 0, 0, 0);
+  const e = new Date(s.getTime() + 60 * 60_000);
+  return { start: localStamp(s), end: localStamp(e), timeZone: ({ 'Asia/Calcutta': 'Asia/Kolkata' } as Record<string, string>)[Intl.DateTimeFormat().resolvedOptions().timeZone] || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' };
+}
+
 const SETTINGS_LABEL = '⚙ Settings (fill in)';
 const H = (id: string, label: string, x: number, y: number, config: any, extra: any = {}) => ({ id, type: 'http', label, position: { x, y }, config: { headers: {}, bodyType: 'json', failOnErrorStatus: true, ...config }, ...extra });
 const T = (id: string, label: string, x: number, y: number, mapping: any) => ({ id, type: 'transform', label, position: { x, y }, config: { mapping } });
@@ -51,21 +62,22 @@ export const TEMPLATES: Template[] = [
   youtubeTemplate('x'),
   {
     key: 'meet-real', group: 'real', emoji: '📅', name: 'Create a real Google Meet (at a set time)',
-    blurb: 'Creates a Google Calendar event with a Meet link and posts the link to Discord. Pick your Google credential on the Meet node, add ⏰ Schedule → Run once.',
-    needs: `an oauth2 credential for Google (Credentials page); ${DISCORD_NEEDS}`,
-    hint: 'Fill ⚙ Settings, choose your Google oauth2 credential in the "Authentication" box of the Meet node, Save, Run to test. For an exact time: ⏰ Schedule → 📌 Run once. The meeting starts 5 minutes after the run (change {{now.in5min}} in the Meet node for another offset).',
+    blurb: 'Creates a Google Calendar event with a Meet link for the date and time you choose in ⚙ Settings, and (optionally) posts the link to Discord.',
+    needs: 'an oauth2 credential for Google (Credentials page). Discord is optional.',
+    hint: 'In ⚙ Settings set the meeting title and its start / end time (YYYY-MM-DDTHH:MM:SS) and time zone, plus — only if you want it — a Discord webhook link (leave it empty to skip Discord). Choose your Google login in the "Authentication" box of the Meet node, Save, then press Run — the event is created for THAT date and time. (⏰ Schedule is only for making FlowForge run this later, e.g. the day before.)',
     graph: {
       nodes: [
-        trig(),
-        T('settings', SETTINGS_LABEL, 300, 160, { title: 'Team sync', discordUrl: 'PASTE_DISCORD_WEBHOOK_URL' }),
-        H('meet', 'Create Meet (pick Google credential)', 580, 160, { method: 'POST', url: 'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1',
-          body: { summary: '{{steps.settings.output.title}}', start: { dateTime: '{{now.in5min}}' }, end: { dateTime: '{{now.in30min}}' },
+        trig(60, 40),
+        T('settings', SETTINGS_LABEL, 330, 40, { title: 'Team sync', ...meetDefaults(), discordUrl: '' }),
+        H('meet', 'Create Meet (pick Google credential)', 600, 40, { method: 'POST', url: 'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1',
+          body: { summary: '{{steps.settings.output.title}}', start: { dateTime: '{{steps.settings.output.start}}', timeZone: '{{steps.settings.output.timeZone}}' }, end: { dateTime: '{{steps.settings.output.end}}', timeZone: '{{steps.settings.output.timeZone}}' },
             conferenceData: { createRequest: { requestId: 'ff-{{now.epochMs}}', conferenceSolutionKey: { type: 'hangoutsMeet' } } } } },
           { retry: { maxAttempts: 2, backoffMs: 1500 } }),
-        H('share', 'Post link to Discord', 880, 160, { method: 'POST', url: '{{steps.settings.output.discordUrl}}',
-          bodyMode: 'message', messageFormat: 'discord', message: '📅 {{steps.settings.output.title}} — join: {{steps.meet.output.body.hangoutLink}}' }),
+        { id: 'cond', type: 'condition', label: 'Discord link given?', position: { x: 600, y: 200 }, config: { left: '{{steps.settings.output.discordUrl}}', operator: 'truthy', right: '' } },
+        H('share', 'Post link to Discord', 870, 200, { method: 'POST', url: '{{steps.settings.output.discordUrl}}',
+          bodyMode: 'message', messageFormat: 'discord', message: '📅 {{steps.settings.output.title}} ({{steps.settings.output.start}} {{steps.settings.output.timeZone}}) — join: {{steps.meet.output.body.hangoutLink}}' }),
       ],
-      edges: [{ id: 'e1', source: 'trigger', target: 'settings' }, { id: 'e2', source: 'settings', target: 'meet' }, { id: 'e3', source: 'meet', target: 'share' }],
+      edges: [{ id: 'e1', source: 'trigger', target: 'settings' }, { id: 'e2', source: 'settings', target: 'meet' }, { id: 'e3', source: 'meet', target: 'cond' }, { id: 'e4', source: 'cond', target: 'share', sourceHandle: 'true' }],
     },
   },
   {
