@@ -50,6 +50,10 @@ function RefChip({ text }: { text: string }) {
 export default function Inspector({ node, onChange, onDelete, upstream = [], workflowId }: Props) {
   const [creds, setCreds] = useState<{ id: string; name: string; type: string }[]>([]);
   useEffect(() => { api.get('/credentials').then((d) => setCreds(d.credentials)).catch(() => {}); }, []);
+  // which Quick setup the person just picked for THIS node (shown as a confirmation, so the pick never looks like it "did nothing")
+  const [applied, setApplied] = useState('');
+  const nodeId = node?.id;
+  useEffect(() => { setApplied(''); }, [nodeId]);
 
   if (!node) {
     return <div className="p-4 text-sm text-slate-400">Select a node to configure it, or drag one in from the palette.</div>;
@@ -103,13 +107,28 @@ export default function Inspector({ node, onChange, onDelete, upstream = [], wor
         <>
           <div>
             <label className="label">Quick setup (optional)</label>
-            <select className="input" value="" data-testid="preset" onChange={(e) => {
+            <select className="input" value={applied} data-testid="preset" onChange={(e) => {
               const p = PRESETS.find((x) => x.id === e.target.value);
-              if (p) onChange({ config: { ...p.patch, credentialId: cfg.credentialId, failOnErrorStatus: cfg.failOnErrorStatus } });
+              if (!p) { setApplied(''); return; }
+              setApplied(p.id);
+              const title = p.label.replace(/^[^\p{L}]+/u, '');
+              const keepLabel = node.label && node.label !== NODE_DEFS.http.label && !PRESETS.some((x) => x.label.replace(/^[^\p{L}]+/u, '') === node.label);
+              onChange({ ...(keepLabel ? {} : { label: title }), config: { ...p.patch, credentialId: cfg.credentialId, failOnErrorStatus: cfg.failOnErrorStatus } });
+              // jump to the next thing they need to fill in
+              if (!p.patch.url) setTimeout(() => (document.querySelector('[data-testid="url"]') as HTMLInputElement | null)?.focus(), 50);
             }}>
               <option value="">Pick what you want to do…</option>
               {PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
             </select>
+            {applied && (() => {
+              const p = PRESETS.find((x) => x.id === applied)!;
+              return (
+                <div className="mt-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2 text-xs text-emerald-200" data-testid="preset-done">
+                  <div className="font-semibold">✓ Set up: {p.label.replace(/^[^\p{L}]+/u, '')}</div>
+                  <div className="text-emerald-100/80 mt-0.5">{p.help} <span className="text-slate-400">(Method, address and message below were filled in for you — change anything you like.)</span></div>
+                </div>
+              );
+            })()}
           </div>
           <div className="flex gap-2">
             <div className="w-28"><label className="label">Method</label>

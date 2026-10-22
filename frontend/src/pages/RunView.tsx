@@ -137,7 +137,7 @@ function Inner() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center gap-3 px-4 h-14 border-b border-edge bg-panel">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 min-h-14 border-b border-edge bg-panel">
         <Link to="/" className="btn">← Workflows</Link>
         <span className="font-semibold">Run</span>
         <span className={`badge ${st.bg} ${st.text}`}>{st.label}</span>
@@ -175,7 +175,7 @@ function Inner() {
       })()}
       <div className="flex-1 flex min-h-0">
         <div className="flex-1">
-          <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView
+          <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ maxZoom: 1, padding: 0.15 }}
             nodesDraggable={false} nodesConnectable={false} elementsSelectable
             onNodeClick={(_, n) => setSel(n.id)} onPaneClick={() => setSel(null)}
             proOptions={{ hideAttribution: true }}>

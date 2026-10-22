@@ -143,9 +143,9 @@ function EditorInner() {
       const used = new Set(edges.filter((e) => e.source === src!.id).map((e) => e.sourceHandle));
       handle = !used.has('true') ? 'true' : !used.has('false') ? 'false' : null;
     }
-    let pos = src ? { x: src.position.x + 400, y: src.position.y + (handle === 'false' ? 130 : handle === 'true' ? -10 : 0) } : { x: 200, y: 150 };
+    let pos = src ? { x: src.position.x + 290, y: src.position.y + (handle === 'false' ? 130 : handle === 'true' ? -10 : 0) } : { x: 200, y: 150 };
     let guard = 0;
-    while (guard++ < 20 && nodes.some((n) => Math.abs(n.position.x - pos.x) < 320 && Math.abs(n.position.y - pos.y) < 100)) pos = { ...pos, y: pos.y + 130 };
+    while (guard++ < 20 && nodes.some((n) => Math.abs(n.position.x - pos.x) < 250 && Math.abs(n.position.y - pos.y) < 100)) pos = { ...pos, y: pos.y + 130 };
     setNodes((n) => [...n, {
       id: nid, type, position: pos,
       data: { label: NODE_DEFS[type].label, nodeType: type, config: { ...NODE_DEFS[type].defaultConfig } } as any,
@@ -160,7 +160,7 @@ function EditorInner() {
     }
     setSelected(nid);
     markDirty();
-    setTimeout(() => { try { rf.fitView({ padding: 0.35, maxZoom: 1, duration: 300 }); } catch { /* not ready */ } }, 60);
+    setTimeout(() => { try { rf.fitView({ padding: 0.25, maxZoom: 1, duration: 300 }); } catch { /* not ready */ } }, 60);
   };
 
   const patchSelected = (patch: any) => {
@@ -283,7 +283,7 @@ function EditorInner() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center gap-3 px-4 h-14 border-b border-edge bg-panel">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 min-h-14 border-b border-edge bg-panel">
         <Link to="/" className="btn" onClick={leave('/')}>← Back</Link>
         <input className="input max-w-xs" value={name} onChange={(e) => { setName(e.target.value); markDirty(); }} />
         {otherErrors.length > 0 && <span className="badge bg-red-500/20 text-red-300">{otherErrors.length} error(s)</span>}
@@ -291,7 +291,7 @@ function EditorInner() {
         <span className={`text-xs whitespace-nowrap ${saveState === 'error' ? 'text-red-400' : saveState === 'saved' ? 'text-slate-500' : 'text-amber-400'}`} data-testid="save-state" aria-live="polite">
           {saveState === 'saved' ? '✓ All changes saved' : saveState === 'saving' ? 'Saving…' : saveState === 'error' ? '⚠ Not saved — press Save' : 'Unsaved changes…'}
         </span>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap gap-2">
           <Link to={`/workflows/${id}/runs`} className="btn" onClick={leave(`/workflows/${id}/runs`)}>Run history</Link>
           <button className="btn" onClick={() => setPanel(panel === 'schedule' ? null : 'schedule')}>⏰ Schedule</button>
           <button className="btn" onClick={() => setPanel(panel === 'versions' ? null : 'versions')}>🕘 Versions</button>
@@ -362,7 +362,7 @@ function EditorInner() {
             onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
             onNodeClick={(_, n) => setSelected(n.id)}
             onPaneClick={() => setSelected(null)}
-            fitView fitViewOptions={{ maxZoom: 1, padding: 0.4 }} minZoom={0.2} maxZoom={1.6} proOptions={{ hideAttribution: true }}
+            fitView fitViewOptions={{ maxZoom: 1, padding: 0.15 }} minZoom={0.2} maxZoom={1.6} proOptions={{ hideAttribution: true }}
           >
             <Background color="#1e2636" gap={18} />
             <Controls />

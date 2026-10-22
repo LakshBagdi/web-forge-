@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../apiOrigin';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
@@ -8,9 +9,9 @@ interface WF { id: string; name: string; description: string; active_version: nu
 const STARTER = {
   nodes: [
     { id: 'trigger', type: 'trigger', label: 'Start', position: { x: 60, y: 160 }, config: {} },
-    { id: 'http1', type: 'http', label: 'Get user', position: { x: 320, y: 160 }, config: { method: 'GET', url: 'http://localhost:4000/mock/users/1', headers: {}, failOnErrorStatus: true } },
+    { id: 'http1', type: 'http', label: 'Get user', position: { x: 320, y: 160 }, config: { method: 'GET', url: `${API_ORIGIN}/mock/users/1`, headers: {}, failOnErrorStatus: true } },
     { id: 'cond1', type: 'condition', label: 'Pro tier?', position: { x: 600, y: 160 }, config: { left: 'steps.http1.output.body.tier', operator: 'eq', right: 'pro' } },
-    { id: 'notify', type: 'http', label: 'Notify', position: { x: 880, y: 80 }, config: { method: 'POST', url: 'http://localhost:4000/mock/notify', body: { user: '{{steps.http1.output.body.name}}' }, bodyType: 'json', headers: {} } },
+    { id: 'notify', type: 'http', label: 'Notify', position: { x: 880, y: 80 }, config: { method: 'POST', url: `${API_ORIGIN}/mock/notify`, body: { user: '{{steps.http1.output.body.name}}' }, bodyType: 'json', headers: {} } },
     { id: 'shape', type: 'transform', label: 'Shape', position: { x: 880, y: 260 }, config: { mapping: { name: '{{steps.http1.output.body.name}}', tier: '{{steps.http1.output.body.tier}}' } } },
   ],
   edges: [
@@ -62,6 +63,7 @@ export default function Workflows() {
       <div className="flex items-center mb-6">
         <h1 className="text-2xl font-bold">Workflows</h1>
         <div className="ml-auto flex gap-2">
+          {wfs.length > 0 && <a className="btn" href="#your-workflows" onClick={(e) => { e.preventDefault(); document.getElementById('your-workflows')?.scrollIntoView({ behavior: 'smooth' }); }}>↓ Your workflows ({wfs.length})</a>}
           <button className="btn" disabled={busy} onClick={() => create(true)}>+ Sample workflow</button>
           <button className="btn btn-primary" disabled={busy} onClick={() => create(false)}>+ New workflow</button>
         </div>
@@ -80,26 +82,8 @@ export default function Workflows() {
           ))}
         </div>
       )}
-      {loaded && wfs.length > 0 && (
-        <div className="mb-6">
-          <div className="text-sm font-semibold text-slate-300 mb-2">Your workflows</div>
-          <div className="grid gap-3">
-            {wfs.map((w) => (
-              <div key={w.id} className="card p-4 flex items-center gap-4 hover:border-accent transition cursor-pointer" onClick={() => nav(`/editor/${w.id}`)} data-testid="wf-row">
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold truncate">{w.name}</div>
-                  <div className="text-xs text-slate-400 truncate">{w.description || 'No description'} · {w.run_count} run(s)</div>
-                </div>
-                <span className="text-xs text-slate-500 hidden sm:block">Edited {new Date(w.updated_at).toLocaleString()}</span>
-                <button className="btn" onClick={(e) => { e.stopPropagation(); nav(`/workflows/${w.id}/runs`); }}>History</button>
-                <button className="btn btn-danger" onClick={(e) => { e.stopPropagation(); remove(w.id); }}>Delete</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {loaded && <details open={wfs.length === 0} className="mb-6">
-        <summary className="cursor-pointer text-sm font-semibold text-slate-300 mb-2 select-none">＋ Start from a ready-made template</summary>
+      {loaded && <details open className="mb-6">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-300 mb-2 select-none">Ready-made templates — click one to start</summary>
         {(['demo', 'real'] as const).map((g) => (
           <div className="mt-3" key={g}>
             <div className="text-xs font-semibold text-slate-400 mb-2">
@@ -118,6 +102,24 @@ export default function Workflows() {
           </div>
         ))}
       </details>}
+      {loaded && wfs.length > 0 && (
+        <div className="mb-6" id="your-workflows">
+          <div className="text-sm font-semibold text-slate-300 mb-2">Your workflows</div>
+          <div className="grid gap-3">
+            {wfs.map((w) => (
+              <div key={w.id} className="card p-4 flex items-center gap-4 hover:border-accent transition cursor-pointer" onClick={() => nav(`/editor/${w.id}`)} data-testid="wf-row">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{w.name}</div>
+                  <div className="text-xs text-slate-400 truncate">{w.description || 'No description'} · {w.run_count} run(s)</div>
+                </div>
+                <span className="text-xs text-slate-500 hidden sm:block">Edited {new Date(w.updated_at).toLocaleString()}</span>
+                <button className="btn" onClick={(e) => { e.stopPropagation(); nav(`/workflows/${w.id}/runs`); }}>History</button>
+                <button className="btn btn-danger" onClick={(e) => { e.stopPropagation(); remove(w.id); }}>Delete</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -148,13 +148,25 @@ npm run test:ssrf   # 28 IP-classification cases (IPv4, IPv6, IPv4-mapped/NAT64/
 
 ---
 
-## 🌐 Deploy
+## 🌐 Deploy (step by step)
 
-- **Backend → Render** (`render.yaml`): add a Postgres (Neon/Render) and Redis
-  (Upstash/Render), paste `DATABASE_URL` / `REDIS_URL`, set `CREDENTIAL_KEY`,
-  `JWT_SECRET`, and `CORS_ORIGINS` (your Vercel URL).
-- **Frontend → Vercel**: root `frontend`, set `VITE_API_BASE` to the Render URL.
-  `vercel.json` handles SPA routing.
+FlowForge deploys as **one service**: the server also serves the website, so you get one link, no CORS, no second host.
+
+**On Render (free, ~10 minutes)**
+1. Push this repo to GitHub (it already is). Create a free account at <https://render.com> (sign in with GitHub).
+2. Render dashboard → **New +** → **Blueprint** → pick this repo → **Apply**. `render.yaml` creates a free Postgres, a free Redis (Key Value) and the web service, and wires their addresses and random secrets automatically.
+3. Wait for the build (3–6 min) until the service says **Live**. Open its `https://….onrender.com` link → Register → use it.
+4. **Save your key:** Render → service **flowforge** → *Environment* → copy the value of `CREDENTIAL_KEY` somewhere safe. It unlocks saved logins/API keys; if it is lost, saved credentials can no longer be read.
+5. Add your X / Google / Discord keys on the **Credentials** page of the deployed site (FlowForge itself has no login-redirect page, so there is no callback address to register for it).
+6. To update later: `git push origin main` — Render redeploys automatically.
+
+**Free-tier limits to know:** a free web service sleeps after ~15 min without visits, so schedules and webhooks only fire while it is awake — keep it awake with a free pinger (e.g. UptimeRobot hitting `/api/health` every 5 min) or use a paid always-on instance for real use. Free databases on Render can have limited lifetime/size; check Render's current free-tier terms.
+
+**Quotas of other services** (YouTube, X, Discord, Google) belong to the provider and apply to *your* key: the Watch block posts only on a real change, failed calls retry with backoff, and a 429 gets a plain-language message.
+
+**Split hosting (optional):** frontend on Vercel (root `frontend`, env `VITE_API_BASE` = backend URL), backend on Render with `CORS_ORIGINS` = the Vercel URL.
+
+**Required environment variables in production:** `NODE_ENV=production`, `JWT_SECRET`, `CREDENTIAL_KEY`, `DATABASE_URL`, `REDIS_URL` (the Blueprint sets all of them).
 
 ---
 

@@ -1,22 +1,44 @@
-# One-click-ish deploy on Render. Create a free Postgres (Neon/Render) and Redis
-# (Upstash/Render) and paste their URLs into the env vars below in the dashboard.
+# FlowForge on Render — ONE service serves the website + the API, plus a free Postgres and Redis (Key Value).
+# Use it with: Render dashboard → New + → Blueprint → pick this repo → Apply.
+# Full beginner steps: README → "Deploy (step by step)".
+databases:
+  - name: flowforge-db
+    plan: free
+    databaseName: flowforge
+    user: flowforge
+
 services:
+  - type: keyvalue
+    name: flowforge-redis
+    plan: free
+    maxmemoryPolicy: noeviction   # BullMQ (the job queue) must never lose keys
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere (protected by the private connection string)
+
   - type: web
-    name: flowforge-api
+    name: flowforge
     runtime: node
-    rootDir: backend
-    buildCommand: npm install
-    startCommand: npm start
+    plan: free
+    # build the website, then install the server (dev tools are needed to build the website)
+    buildCommand: npm --prefix frontend install --include=dev && npm --prefix frontend run build && npm --prefix backend install
+    startCommand: npm --prefix backend start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 20
       - key: JWT_SECRET
-        generateValue: true
+        generateValue: true       # random, created once for you
       - key: CREDENTIAL_KEY
-        sync: false   # paste: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+        generateValue: true       # random, created once — KEEP IT: it unlocks saved logins/API keys
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: flowforge-db
+          property: connectionString
       - key: REDIS_URL
-        sync: false
-      - key: CORS_ORIGINS
-        sync: false   # your Vercel URL, e.g. https://flowforge.vercel.app
+        fromService:
+          type: keyvalue
+          name: flowforge-redis
+          property: connectionString

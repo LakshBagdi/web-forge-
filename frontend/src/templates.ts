@@ -1,3 +1,4 @@
+import { API_ORIGIN } from './apiOrigin';
 /** Ready-made workflows. "Mock" URLs hit FlowForge's built-in demo endpoints so every template runs offline. */
 export interface Template { key: string; group: 'real' | 'demo'; name: string; emoji: string; blurb: string; needs?: string; hint: string; graph: { nodes: any[]; edges: any[] }; }
 
@@ -12,10 +13,10 @@ const YT_NEEDS = 'YouTube API key + the channel\'s uploads playlist id (channel 
 /** New YouTube video -> post to Discord or X. Everything you must fill in lives in the ⚙ Settings node. */
 function youtubeTemplate(target: 'discord' | 'x'): Template {
   const post = target === 'discord'
-    ? H('post', 'Post to Discord', 1100, 80, { method: 'POST', url: '{{steps.settings.output.discordUrl}}',
+    ? H('post', 'Post to Discord', 870, 140, { method: 'POST', url: '{{steps.settings.output.discordUrl}}',
         bodyMode: 'message', messageFormat: 'discord', message: '🎬 New video: {{steps.fetch.output.body.items.0.snippet.title}} https://youtu.be/{{steps.fetch.output.body.items.0.snippet.resourceId.videoId}}' },
         { retry: { maxAttempts: 3, backoffMs: 1500 } })
-    : H('post', 'Post to X (pick your X credential)', 1100, 80, { method: 'POST', url: 'https://api.twitter.com/2/tweets',
+    : H('post', 'Post to X (pick your X credential)', 870, 140, { method: 'POST', url: 'https://api.twitter.com/2/tweets',
         bodyMode: 'message', messageFormat: 'x', message: '🎬 New video: {{steps.fetch.output.body.items.0.snippet.title}} https://youtu.be/{{steps.fetch.output.body.items.0.snippet.resourceId.videoId}}' },
         { retry: { maxAttempts: 2, backoffMs: 2000 } });
   const settings = target === 'discord'
@@ -29,13 +30,13 @@ function youtubeTemplate(target: 'discord' | 'x'): Template {
     hint: 'Fill the PASTE_ values in the ⚙ Settings node. "Run on first check" is on so your first Run posts the latest video once; untick it on the "New video?" node afterwards if you only want future videos. Then ⏰ Schedule → Repeat.',
     graph: {
       nodes: [
-        trig(),
-        T('settings', SETTINGS_LABEL, 300, 160, settings),
-        H('fetch', 'Latest video', 580, 160, { method: 'GET', url: 'https://www.googleapis.com/youtube/v3/playlistItems',
+        trig(60, 40),
+        T('settings', SETTINGS_LABEL, 330, 40, settings),
+        H('fetch', 'Latest video', 600, 40, { method: 'GET', url: 'https://www.googleapis.com/youtube/v3/playlistItems',
           query: { part: 'snippet', maxResults: '1', playlistId: '{{steps.settings.output.playlistId}}', key: '{{steps.settings.output.youtubeApiKey}}' } }),
-        { id: 'watch', type: 'watch', label: 'New video?', position: { x: 840, y: 160 }, config: { value: '{{steps.fetch.output.body.items.0.snippet.resourceId.videoId}}', fireOnFirstRun: true } },
+        { id: 'watch', type: 'watch', label: 'New video?', position: { x: 600, y: 200 }, config: { value: '{{steps.fetch.output.body.items.0.snippet.resourceId.videoId}}', fireOnFirstRun: true } },
         post,
-        T('idle', 'Nothing new', 1100, 260, { note: 'no new video' }),
+        T('idle', 'Nothing new', 870, 300, { note: 'no new video' }),
       ],
       edges: [
         { id: 'e1', source: 'trigger', target: 'settings' }, { id: 'e2', source: 'settings', target: 'fetch' }, { id: 'e3', source: 'fetch', target: 'watch' },
@@ -103,11 +104,11 @@ export const TEMPLATES: Template[] = [
       nodes: [
         trig(),
         { id: 'meet', type: 'http', label: 'Create Meet event', position: { x: 320, y: 160 }, config: {
-          method: 'POST', url: 'http://localhost:4000/mock/calendar/events', headers: {}, bodyType: 'json', failOnErrorStatus: true,
+          method: 'POST', url: `${API_ORIGIN}/mock/calendar/events`, headers: {}, bodyType: 'json', failOnErrorStatus: true,
           body: { summary: 'Team sync', start: '{{now.in5min}}', end: '{{now.in30min}}', conferenceData: { createRequest: { requestId: 'ff-{{now.epochMs}}', conferenceSolutionKey: { type: 'hangoutsMeet' } } } } },
           retry: { maxAttempts: 3, backoffMs: 1000 } },
         { id: 'share', type: 'http', label: 'Post the link', position: { x: 600, y: 160 }, config: {
-          method: 'POST', url: 'http://localhost:4000/mock/notify', headers: {}, bodyType: 'json', failOnErrorStatus: true,
+          method: 'POST', url: `${API_ORIGIN}/mock/notify`, headers: {}, bodyType: 'json', failOnErrorStatus: true,
           body: { text: 'Meeting starts soon: {{steps.meet.output.body.hangoutLink}}' } } },
       ],
       edges: [{ id: 'e1', source: 'trigger', target: 'meet' }, { id: 'e2', source: 'meet', target: 'share' }],
@@ -120,10 +121,10 @@ export const TEMPLATES: Template[] = [
     graph: {
       nodes: [
         trig(),
-        { id: 'fetch', type: 'http', label: 'Latest video', position: { x: 300, y: 160 }, config: { method: 'GET', url: 'http://localhost:4000/mock/latest-video', query: { channel: 'demo' }, headers: {}, failOnErrorStatus: true } },
+        { id: 'fetch', type: 'http', label: 'Latest video', position: { x: 300, y: 160 }, config: { method: 'GET', url: `${API_ORIGIN}/mock/latest-video`, query: { channel: 'demo' }, headers: {}, failOnErrorStatus: true } },
         { id: 'watch', type: 'watch', label: 'New video?', position: { x: 560, y: 160 }, config: { value: '{{steps.fetch.output.body.id}}', fireOnFirstRun: false } },
         { id: 'post', type: 'http', label: 'Post it', position: { x: 840, y: 90 }, config: {
-          method: 'POST', url: 'http://localhost:4000/mock/notify', headers: {}, bodyType: 'json', failOnErrorStatus: true,
+          method: 'POST', url: `${API_ORIGIN}/mock/notify`, headers: {}, bodyType: 'json', failOnErrorStatus: true,
           body: { text: 'New video: {{steps.fetch.output.body.title}} {{steps.fetch.output.body.url}}' } }, retry: { maxAttempts: 3, backoffMs: 1000 } },
         { id: 'idle', type: 'transform', label: 'Nothing new', position: { x: 840, y: 250 }, config: { mapping: { note: 'no new video' } } },
       ],
@@ -142,7 +143,7 @@ export const TEMPLATES: Template[] = [
         trig(),
         { id: 'big', type: 'condition', label: 'Big amount?', position: { x: 320, y: 160 }, config: { left: '', operator: 'eq', right: '', expression: 'input.amount > 100' } },
         { id: 'alert', type: 'http', label: 'Send alert', position: { x: 620, y: 80 }, config: {
-          method: 'POST', url: 'http://localhost:4000/mock/notify', headers: {}, bodyType: 'json', failOnErrorStatus: true,
+          method: 'POST', url: `${API_ORIGIN}/mock/notify`, headers: {}, bodyType: 'json', failOnErrorStatus: true,
           body: { text: 'Large payment of {{input.amount}} from {{input.customer}}' } } },
         { id: 'log', type: 'transform', label: 'Just record', position: { x: 620, y: 250 }, config: { mapping: { amount: '{{input.amount}}' } } },
       ],

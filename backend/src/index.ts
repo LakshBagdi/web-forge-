@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -44,6 +46,19 @@ async function main() {
   app.use('/api/schedules', scheduleRouter);
   app.use('/hooks', hooksRouter); // public, token-authenticated webhook triggers
   app.use('/mock', mockRouter); // demo-only target API
+
+  // Single-service hosting: if the frontend has been built (frontend/dist), serve it from here too,
+  // so one URL = website + API (same origin, no CORS setup). In local dev vite serves the website instead.
+  const distCandidates = [process.env.FRONTEND_DIST, path.resolve(process.cwd(), '../frontend/dist'), path.resolve(process.cwd(), 'frontend/dist')].filter(Boolean) as string[];
+  const dist = distCandidates.find((d) => fs.existsSync(path.join(d, 'index.html')));
+  if (dist) {
+    app.use(express.static(dist, { index: false, maxAge: '1h' }));
+    app.get('*', (req, res, next) => {
+      if (/^\/(api|hooks|mock|assets)(\/|$)/.test(req.path)) return next();
+      res.sendFile(path.join(dist, 'index.html'));
+    });
+    console.log(`Serving the website from ${dist}`);
+  }
 
   app.use(notFound);
   app.use(errorHandler);
