@@ -132,6 +132,27 @@ ok('unconnected step -> friendly "not connected" message',run.status==='start-fa
 run=await go('no-trigger',[N('x','transform','T',{value:'x'})],[]);
 ok('no trigger at all handled',['success','failed','create-failed','start-failed'].includes(run.status),JSON.stringify(run).slice(0,200));
 
+// 9b wait until a clock time (in a named time zone)
+const wall=(ms,tz)=>{const f=new Intl.DateTimeFormat('en-CA',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(ms);const g=t=>f.find(x=>x.type===t).value;return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}:${g('second')}`};
+let t0=Date.now();
+run=await go('until-ist',[T,N('d','delay','wait',{ms:0,until:'{{input.when}}',untilZone:'Asia/Kolkata'}),N('x','transform','after',{value:'done'})],[E('1','t','d'),E('2','d','x')],{when:wall(Date.now()+4000,'Asia/Kolkata')});
+let el=Date.now()-t0;
+ok('wait-until (IST wall clock) waits ~4s then continues',run.status==='success'&&out(run,'x')==='done'&&el>=2500&&el<9000,`${run.status} ${el}ms ${JSON.stringify(out(run,'d'))}`);
+t0=Date.now();
+run=await go('until-ny',[T,N('d','delay','wait',{ms:0,until:wall(Date.now()+3000,'America/New_York'),untilZone:'America/New_York'})],[E('1','t','d')]);
+ok('wait-until works for another zone',run.status==='success'&&Date.now()-t0>=2000&&Date.now()-t0<8000,`${Date.now()-t0}`);
+run=await go('until-offset',[T,N('d','delay','wait',{ms:0,until:new Date(Date.now()+3000).toISOString().replace(/\.\d+Z$/,'+00:00')})],[E('1','t','d')]);
+ok('wait-until accepts explicit offset',run.status==='success');
+t0=Date.now();
+run=await go('until-far',[T,N('d','delay','wait',{ms:0,until:wall(Date.now()+3*3600e3,'Asia/Kolkata'),untilZone:'Asia/Kolkata'})],[E('1','t','d')]);
+ok('wait-until far away carries on immediately',run.status==='success'&&Date.now()-t0<5000&&out(run,'d')?.skipped==='too far away',JSON.stringify(out(run,'d')));
+run=await go('until-past',[T,N('d','delay','wait',{ms:0,until:'2020-01-01T10:00:00',untilZone:'Asia/Kolkata'})],[E('1','t','d')]);
+ok('wait-until in the past carries on',run.status==='success'&&out(run,'d')?.skipped==='already passed');
+run=await go('until-bad',[T,N('d','delay','wait',{ms:0,until:'tomorrow evening',untilZone:'Asia/Kolkata'})],[E('1','t','d')]);
+ok('wait-until bad text -> friendly error',run.status==='failed'&&/Could not read/.test(run.node_state?.d?.error||''),run.node_state?.d?.error);
+run=await go('until-badzone',[T,N('d','delay','wait',{ms:0,until:'2030-01-01T10:00:00',untilZone:'Mars/Base'})],[E('1','t','d')]);
+ok('wait-until bad zone -> friendly error',run.status==='failed'&&/time zone/.test(run.node_state?.d?.error||''),run.node_state?.d?.error);
+
 // 10 watch semantic
 const wkey='ch'+Date.now();
 const wnodes=[T,H('a','v',{url:U+'/mock/latest-video?channel='+wkey}),N('w','watch','W',{value:'{{steps.a.output.body.id}}'}),N('y','transform','new!',{value:'NEW'})];

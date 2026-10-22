@@ -300,7 +300,15 @@ export default function Inspector({ node, onChange, onDelete, upstream = [], wor
                 </select>
               </div>
             </div>
-            {n * UNIT_MS[unit] > 120_000 && <div className="text-xs text-amber-300">⚠ Too long — a Delay waits at most 2 minutes, so this will be cut to 2 minutes. Use ⏰ Schedule for longer waits.</div>}
+            <div>
+              <label className="label">…or wait until a date &amp; time (optional)</label>
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-1">
+                <input className="input font-mono" placeholder="2026-10-23T19:50:00" value={cfg.until || ''} data-testid="delay-until" onChange={(e) => set({ until: e.target.value || undefined })} />
+                <input className="input font-mono" placeholder="Asia/Kolkata" value={cfg.untilZone || ''} data-testid="delay-zone" onChange={(e) => set({ untilZone: e.target.value || undefined })} />
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">Date &amp; time, then the time-zone name. Waits up to 30 minutes; if the time is further away it carries on immediately.</div>
+            </div>
+            {!cfg.until && n * UNIT_MS[unit] > 120_000 && <div className="text-xs text-amber-300">⚠ Too long — a Delay waits at most 2 minutes, so this will be cut to 2 minutes. Use ⏰ Schedule for longer waits.</div>}
             <Tip title="When do I use Delay?" open>
               <p>It makes the workflow <b>pause</b>, then carry on with the next step.</p>
               <p><b>Example:</b> Trigger → Post “Starting soon!” → <b>Delay 10 minutes</b> → Post “We are live now!”.</p>

@@ -173,7 +173,8 @@ export function validateWorkflow(graph: WorkflowGraph): ValidationIssue[] {
     }
     if (n.type === 'delay') {
       const ms = Number(n.config?.ms);
-      if (!Number.isFinite(ms) || ms < 0) {
+      if (n.config?.until) { /* waiting until a clock time: checked when it runs */ }
+      else if (!Number.isFinite(ms) || ms < 0) {
         issues.push({ level: 'error', nodeId: n.id, message: `"${n.label || n.id}" needs a wait time of 0 or more` });
       } else if (ms > 120_000) {
         issues.push({ level: 'warning', nodeId: n.id, message: `"${n.label || n.id}" waits at most 2 minutes. For longer waits use ⏰ Schedule → “Run once”` });

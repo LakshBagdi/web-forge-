@@ -207,8 +207,42 @@ async function runTransform(node: WorkflowNode, ctx: ExecContext): Promise<NodeR
   return { output: node.config.value !== undefined ? resolveTemplates(node.config.value, ctx) : ctx.input };
 }
 
-async function runDelay(node: WorkflowNode, _ctx: ExecContext, svc: NodeServices): Promise<NodeResult> {
-  const ms = Math.min(Math.max(Number(node.config.ms) || 0, 0), 120_000);
+export const MAX_WAIT_UNTIL_MS = 30 * 60_000;
+
+/** "2026-10-22T19:50:00" in a named time zone (or with Z / +05:30 already in it) -> epoch ms. NaN if it can't be read. */
+export function wallTimeToMs(raw: string, tz?: string): number {
+  const s = String(raw).trim();
+  if (/(Z|[+-]\d\d:?\d\d)$/i.test(s) && /T/.test(s)) return Date.parse(s);
+  const m = s.match(/^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d)(?::(\d\d))?$/);
+  if (!m) return NaN;
+  const [y, mo, d, h, mi, se] = [m[1], m[2], m[3], m[4], m[5], m[6] || '0'].map(Number);
+  const guess = Date.UTC(y, mo - 1, d, h, mi, se);
+  const zone = (tz || '').trim() || 'UTC';
+  const fmt = new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const offset = (t: number) => {
+    const p: Record<string, string> = Object.fromEntries(fmt.formatToParts(t).map((x) => [x.type, x.value]));
+    return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - t;
+  };
+  const t1 = guess - offset(guess);
+  return guess - offset(t1);
+}
+
+async function runDelay(node: WorkflowNode, ctx: ExecContext, svc: NodeServices): Promise<NodeResult> {
+  let ms = Math.min(Math.max(Number(node.config.ms) || 0, 0), 120_000);
+  const cfg = resolveTemplates(node.config, ctx);
+  if (cfg.until !== undefined && String(cfg.until).trim() !== '') {
+    let at: number;
+    try { at = wallTimeToMs(String(cfg.until), cfg.untilZone); } catch { throw new Error(`"${cfg.untilZone}" is not a time zone name. Use something like Asia/Kolkata or America/New_York.`); }
+    if (Number.isNaN(at)) throw new Error(`Could not read "${cfg.until}" as a date and time. Write it like 2026-10-23T19:50:00.`);
+    const wait = at - Date.now();
+    if (wait <= 0) { svc.log('info', 'That time has already passed, so carrying on right away'); return { output: { waitedMs: 0, until: cfg.until, skipped: 'already passed' } }; }
+    if (wait > MAX_WAIT_UNTIL_MS) {
+      svc.log('warn', `That time is ${Math.round(wait / 60_000)} minutes away — a step can wait at most 30 minutes, so carrying on right away. (To act at an exact later time, use ⏰ Schedule → Run once.)`);
+      return { output: { waitedMs: 0, until: cfg.until, skipped: 'too far away' } };
+    }
+    ms = wait;
+    svc.log('info', `Waiting until ${cfg.until}${cfg.untilZone ? ' (' + cfg.untilZone + ')' : ''} — about ${Math.ceil(wait / 1000)} s`);
+  }
   svc.log('info', `Delay ${ms}ms`);
   await new Promise<void>((resolve, reject) => {
     const t = setTimeout(resolve, ms);

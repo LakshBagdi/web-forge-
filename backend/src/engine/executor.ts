@@ -128,7 +128,7 @@ async function runNodeWithRetry(
   const backoff = Math.min(60_000, Math.max(0, Number(node.retry?.backoffMs ?? 500) || 0));
   // A Delay node legitimately waits longer than the default step timeout, so size its timeout to the wait.
   const defaultTimeout = node.type === 'delay'
-    ? Math.min(Math.max(Number(node.config?.ms) || 0, 0), 120_000) + 2_000
+    ? (node.config?.until ? 31 * 60_000 : Math.min(Math.max(Number(node.config?.ms) || 0, 0), 120_000) + 2_000)
     : config.stepTimeoutMs;
   const timeoutMs = node.timeoutMs && node.timeoutMs >= 100 ? node.timeoutMs : defaultTimeout; // ignore blank/0/garbage
 

@@ -102,7 +102,7 @@ export const TEMPLATES: Template[] = [
   },
   {
     key: 'meet-real', group: 'real', emoji: '📅', name: 'Create a real Google Meet (at a set time)',
-    blurb: 'Creates a Google Calendar event with a Meet link for the date and time you choose in ⚙ Settings, and (optionally) posts the link to Discord.',
+    blurb: 'Creates a Google Calendar event with a Meet link for the date and time you choose in ⚙ Settings, and (optionally) posts the link to Discord when the meeting starts.',
     needs: 'an oauth2 credential for Google (Credentials page). Discord is optional.',
     hint: 'In ⚙ Settings set the meeting title and its start / end time (YYYY-MM-DDTHH:MM:SS) and time zone, plus — only if you want it — a Discord webhook link (leave it empty to skip Discord). Choose your Google login in the "Authentication" box of the Meet node, Save, then press Run — the event is created for THAT date and time. (⏰ Schedule is only for making FlowForge run this later, e.g. the day before.)',
     graph: {
@@ -114,10 +114,11 @@ export const TEMPLATES: Template[] = [
             conferenceData: { createRequest: { requestId: 'ff-{{now.epochMs}}', conferenceSolutionKey: { type: 'hangoutsMeet' } } } } },
           { retry: { maxAttempts: 2, backoffMs: 1500 } }),
         { id: 'cond', type: 'condition', label: 'Discord link given?', position: { x: 600, y: 200 }, config: { left: '{{steps.settings.output.discordUrl}}', operator: 'truthy', right: '' } },
-        H('share', 'Post link to Discord', 870, 200, { method: 'POST', url: '{{steps.settings.output.discordUrl}}',
+        { id: 'wait', type: 'delay', label: 'Wait until the meeting time', position: { x: 870, y: 200 }, config: { ms: 0, until: '{{steps.settings.output.start}}', untilZone: '{{steps.settings.output.timeZone}}' } },
+        H('share', 'Post link to Discord', 1140, 200, { method: 'POST', url: '{{steps.settings.output.discordUrl}}',
           bodyMode: 'message', messageFormat: 'discord', message: '📅 {{steps.settings.output.title}} ({{steps.settings.output.start}} {{steps.settings.output.timeZone}}) — join: {{steps.meet.output.body.hangoutLink}}' }),
       ],
-      edges: [{ id: 'e1', source: 'trigger', target: 'settings' }, { id: 'e2', source: 'settings', target: 'meet' }, { id: 'e3', source: 'meet', target: 'cond' }, { id: 'e4', source: 'cond', target: 'share', sourceHandle: 'true' }],
+      edges: [{ id: 'e1', source: 'trigger', target: 'settings' }, { id: 'e2', source: 'settings', target: 'meet' }, { id: 'e3', source: 'meet', target: 'cond' }, { id: 'e4', source: 'cond', target: 'wait', sourceHandle: 'true' }, { id: 'e5', source: 'wait', target: 'share' }],
     },
   },
   {
