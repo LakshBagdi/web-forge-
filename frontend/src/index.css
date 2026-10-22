@@ -3,7 +3,22 @@
 @tailwind utilities;
 
 @layer base {
+  html { color-scheme: dark; }
   html, body, #root { height: 100%; }
+
+  /* Chrome autofill paints inputs light blue/white, making our light text unreadable.
+     Force the dark background and light text back on autofilled fields. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: #e6e9ef;
+    caret-color: #e6e9ef;
+    -webkit-box-shadow: 0 0 0 1000px #0b0e14 inset;
+    box-shadow: 0 0 0 1000px #0b0e14 inset;
+    transition: background-color 9999s ease-in-out 0s;
+  }
   body {
     margin: 0;
     background: #0b0e14;

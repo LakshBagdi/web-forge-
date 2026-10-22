@@ -47,7 +47,7 @@ export default function Login() {
           </button>
           <div className="text-center text-sm text-slate-400">
             {mode === 'login' ? "No account? " : 'Have an account? '}
-            <button type="button" className="text-accent" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
+            <button type="button" className="text-accent" onClick={() => { setErr(''); setMode(mode === 'login' ? 'register' : 'login'); }}>
               {mode === 'login' ? 'Register' : 'Log in'}
             </button>
           </div>
