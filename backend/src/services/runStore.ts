@@ -26,14 +26,20 @@ export async function getRun(id: string): Promise<RunRow | null> {
 export async function setRunStatus(id: string, status: RunStatus, error?: string | null) {
   const setStarted = status === 'running';
   const setFinished = ['success', 'failed', 'cancelled'].includes(status);
-  await pool.query(
+  // A cancelled run is final: later writes from a still-executing worker must not revive it.
+  const res = await pool.query(
     `UPDATE runs SET status=$2, error=$3,
        started_at = COALESCE(started_at, CASE WHEN $4 THEN now() ELSE NULL END),
        finished_at = CASE WHEN $5 THEN now() ELSE finished_at END
-     WHERE id=$1`,
+     WHERE id=$1 AND (status <> 'cancelled' OR $2 = 'cancelled')`,
     [id, status, error ?? null, setStarted, setFinished],
   );
-  emitRunEvent({ type: 'run.status', runId: id, payload: { status, error: error ?? null } });
+  if (res.rowCount) emitRunEvent({ type: 'run.status', runId: id, payload: { status, error: error ?? null } });
+}
+
+export async function isCancelled(id: string): Promise<boolean> {
+  const r = await one<{ status: string }>('SELECT status FROM runs WHERE id=$1', [id]);
+  return !r || r.status === 'cancelled';
 }
 
 export async function saveNodeState(runId: string, nodeId: string, state: NodeRunState) {

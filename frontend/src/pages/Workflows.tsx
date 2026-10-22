@@ -67,6 +67,7 @@ export default function Workflows() {
                 <div className="text-xs text-slate-400">{w.description || 'No description'} · v{w.active_version} · {w.run_count} run(s)</div>
               </div>
               <span className="text-xs text-slate-500">{new Date(w.updated_at).toLocaleString()}</span>
+              <button className="btn" onClick={(e) => { e.stopPropagation(); nav(`/workflows/${w.id}/runs`); }}>History</button>
               <button className="btn btn-danger" onClick={(e) => { e.stopPropagation(); remove(w.id); }}>Delete</button>
             </div>
           ))}

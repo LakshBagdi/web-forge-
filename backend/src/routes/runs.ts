@@ -11,8 +11,23 @@ export const runRouter = Router();
 
 // SSE stream must authenticate via ?token= (EventSource can't set headers).
 runRouter.get('/:id/stream', requireAuth, wrap(async (req: AuthedRequest, res) => {
-  const run = await getRun(req.params.id);
-  if (!run || run.user_id !== req.userId) throw new HttpError(404, 'Run not found');
+  const runId = req.params.id as string;
+
+  // Attach the listener BEFORE reading the run and buffer events until the snapshot is
+  // written, so nothing emitted in between is lost. Clients merge monotonically, so a
+  // buffered event that is older than the snapshot is harmless.
+  const buffer: RunEvent[] = [];
+  let ready = false;
+  const send = (e: RunEvent) => res.write(`event: ${e.type}\ndata: ${JSON.stringify(e.payload)}\n\n`);
+  const listener = (e: RunEvent) => (ready ? send(e) : buffer.push(e));
+  bus.on(runId, listener);
+  req.on('close', () => { bus.off(runId, listener); });
+
+  const run = await getRun(runId);
+  if (!run || run.user_id !== req.userId) {
+    bus.off(runId, listener);
+    throw new HttpError(404, 'Run not found');
+  }
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -21,17 +36,15 @@ runRouter.get('/:id/stream', requireAuth, wrap(async (req: AuthedRequest, res) =
     'X-Accel-Buffering': 'no',
   });
   res.write(`event: snapshot\ndata: ${JSON.stringify({ run })}\n\n`);
-
-  const send = (e: RunEvent) => res.write(`event: ${e.type}\ndata: ${JSON.stringify(e.payload)}\n\n`);
-  const listener = (e: RunEvent) => send(e);
-  bus.on(req.params.id, listener);
+  ready = true;
+  buffer.splice(0).forEach(send);
 
   const ping = setInterval(() => res.write(': ping\n\n'), 15000);
+  req.on('close', () => clearInterval(ping));
   // If the run is already finished, close shortly after sending the snapshot.
   if (['success', 'failed', 'cancelled'].includes(run.status)) {
     setTimeout(() => { res.write('event: done\ndata: {}\n\n'); res.end(); }, 200);
   }
-  req.on('close', () => { clearInterval(ping); bus.off(req.params.id, listener); });
 }));
 
 runRouter.use(requireAuth);

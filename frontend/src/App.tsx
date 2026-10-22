@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Workflows from './pages/Workflows';
 import Editor from './pages/Editor';
 import RunView from './pages/RunView';
+import RunHistory from './pages/RunHistory';
 import Credentials from './pages/Credentials';
 
 function Protected({ children }: { children: JSX.Element }) {
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<Protected><Workflows /></Protected>} />
             <Route path="/editor/:id" element={<Protected><Editor /></Protected>} />
+            <Route path="/workflows/:id/runs" element={<Protected><RunHistory /></Protected>} />
             <Route path="/runs/:id" element={<Protected><RunView /></Protected>} />
             <Route path="/credentials" element={<Protected><Credentials /></Protected>} />
             <Route path="*" element={<Navigate to="/" replace />} />

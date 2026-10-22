@@ -3,7 +3,7 @@ import { topoOrder, nodeMap, incoming, outgoing } from './dag';
 import { ExecContext } from './context';
 import { executeNode, NodeServices, DecryptedCredential } from './nodes';
 import { getCredentialDecrypted } from '../services/credentials';
-import { getRun, setRunStatus, saveNodeState, appendLog } from '../services/runStore';
+import { getRun, setRunStatus, saveNodeState, appendLog, isCancelled } from '../services/runStore';
 import { config } from '../config';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -66,6 +66,10 @@ export async function executeRun(runId: string): Promise<void> {
   try {
     for (const nodeId of order) {
       if (reuse.has(nodeId)) continue;
+      if (await isCancelled(runId)) {
+        await appendLog(runId, null, 'warn', 'Run cancelled; remaining steps not executed');
+        return;
+      }
       const node = map.get(nodeId)!;
 
       // Decide: run or skip, based on incoming edges.
@@ -101,6 +105,7 @@ export async function executeRun(runId: string): Promise<void> {
       ctx.steps[nodeId] = { output: result.output, status: 'success' };
     }
 
+    if (await isCancelled(runId)) return;
     await setRunStatus(runId, 'success');
     await appendLog(runId, null, 'info', 'Run completed successfully');
   } catch (err: any) {

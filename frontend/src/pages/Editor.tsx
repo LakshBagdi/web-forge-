@@ -8,6 +8,8 @@ import 'reactflow/dist/style.css';
 import { api } from '../api';
 import { nodeTypes, FlowNodeData } from '../flow/CustomNodes';
 import Inspector from '../components/Inspector';
+import VersionsPanel from '../components/VersionsPanel';
+import SchedulePanel from '../components/SchedulePanel';
 import { NODE_DEFS, NodeType } from '../constants';
 
 let idSeq = 1;
@@ -50,16 +52,18 @@ function EditorInner() {
   const [issues, setIssues] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
+  const [panel, setPanel] = useState<null | 'versions' | 'schedule'>(null);
   const dirty = useRef(false);
 
-  useEffect(() => {
-    api.get(`/workflows/${id}`).then((d) => {
-      setName(d.workflow.name);
-      const f = toFlow(d.workflow.graph);
-      setNodes(f.nodes); setEdges(f.edges);
-      setIssues(d.validation || []);
-    });
-  }, [id]);
+  const load = useCallback(() => api.get(`/workflows/${id}`).then((d) => {
+    setName(d.workflow.name);
+    const f = toFlow(d.workflow.graph);
+    setNodes(f.nodes); setEdges(f.edges);
+    setIssues(d.validation || []);
+    setSelected(null);
+    dirty.current = false;
+  }), [id]);
+  useEffect(() => { load(); }, [load]);
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
@@ -99,7 +103,7 @@ function EditorInner() {
     setSaving(true);
     try {
       const graph = toGraph(nodes, edges);
-      const d = await api.put(`/workflows/${id}`, { name, graph, newVersion, note: newVersion ? 'Snapshot' : '' });
+      const d = await api.put(`/workflows/${id}`, { name, graph, newVersion, note: newVersion ? `Snapshot ${new Date().toLocaleTimeString()}` : '' });
       setIssues(d.validation || []);
       dirty.current = false;
       flash(newVersion ? 'Saved as new version' : 'Saved');
@@ -115,6 +119,7 @@ function EditorInner() {
   };
 
   const duplicate = async () => {
+    await save(false); // copy what's on screen, including unsaved edits
     const { workflow } = await api.post(`/workflows/${id}/duplicate`);
     nav(`/editor/${workflow.id}`);
   };
@@ -135,7 +140,9 @@ function EditorInner() {
         {errors.length > 0 && <span className="badge bg-red-500/20 text-red-300">{errors.length} error(s)</span>}
         {dirty.current && <span className="text-xs text-amber-400">unsaved</span>}
         <div className="ml-auto flex gap-2">
-          <Link to={`/runs?wf=${id}`} className="btn">History</Link>
+          <Link to={`/workflows/${id}/runs`} className="btn">Run history</Link>
+          <button className="btn" onClick={() => setPanel(panel === 'schedule' ? null : 'schedule')}>⏰ Schedule</button>
+          <button className="btn" onClick={() => setPanel(panel === 'versions' ? null : 'versions')}>🕘 Versions</button>
           <button className="btn" onClick={duplicate}>Duplicate</button>
           <button className="btn" onClick={() => save(true)} disabled={saving}>Save version</button>
           <button className="btn" onClick={() => save(false)} disabled={saving}>Save</button>
@@ -176,7 +183,16 @@ function EditorInner() {
             <Controls />
             <MiniMap pannable zoomable maskColor="#0b0e14cc" nodeColor={(n) => NODE_DEFS[(n.data as any).nodeType as NodeType]?.color || '#888'} />
           </ReactFlow>
-          {toast && <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-edge px-4 py-2 rounded-md text-sm">{toast}</div>}
+          {toast && <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-edge px-4 py-2 rounded-md text-sm z-20">{toast}</div>}
+          {panel && (
+            <div className="absolute top-0 right-0 bottom-0 w-80 bg-panel border-l border-edge z-10 overflow-y-auto shadow-2xl">
+              {panel === 'versions' && (
+                <VersionsPanel workflowId={id!} onClose={() => setPanel(null)}
+                  onRestored={() => { load(); flash('Version restored'); setPanel(null); }} />
+              )}
+              {panel === 'schedule' && <SchedulePanel workflowId={id!} onClose={() => setPanel(null)} />}
+            </div>
+          )}
         </div>
 
         {/* inspector */}

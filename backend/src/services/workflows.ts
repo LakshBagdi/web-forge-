@@ -69,6 +69,11 @@ export async function duplicateWorkflow(userId: string, id: string) {
 }
 
 export async function deleteWorkflow(userId: string, id: string) {
+  // Remove queue-side cron schedulers first; the DB rows vanish via ON DELETE CASCADE.
+  const scheds = await query<{ id: string }>(
+    'SELECT id FROM schedules WHERE workflow_id=$1 AND user_id=$2', [id, userId]);
+  const { removeCron } = await import('../queue');
+  for (const s of scheds) await removeCron(s.id).catch(() => {});
   await query('DELETE FROM workflows WHERE id=$1 AND user_id=$2', [id, userId]);
 }
 

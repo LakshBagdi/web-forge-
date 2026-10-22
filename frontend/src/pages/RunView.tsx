@@ -8,6 +8,29 @@ import { NodeType, STATUS_STYLE } from '../constants';
 
 interface LogLine { id: number; nodeId: string | null; level: string; message: string; ts: string; }
 
+// Progress only moves forward. This stops a slow, older response from overwriting
+// a newer live update (e.g. showing "Running" after the run already finished).
+const RANK: Record<string, number> = { '': 0, pending: 0, queued: 0, running: 1, success: 2, failed: 2, skipped: 2, cancelled: 2 };
+const TERMINAL = ['success', 'failed', 'cancelled'];
+const forward = (prev: string, next: string) => ((RANK[next] ?? 0) >= (RANK[prev] ?? 0) ? next : prev);
+
+function mergeNodeState(prev: Record<string, any>, next: Record<string, any>) {
+  const out = { ...prev };
+  for (const [id, st] of Object.entries(next || {})) {
+    const old = out[id];
+    if (!old || (RANK[st.status] ?? 0) >= (RANK[old.status] ?? 0)) out[id] = st;
+  }
+  return out;
+}
+
+function mergeLogs(prev: LogLine[], incoming: LogLine[]) {
+  if (!incoming.length) return prev;
+  const seen = new Set(prev.map((l) => String(l.id)));
+  const add = incoming.filter((l) => !seen.has(String(l.id)));
+  if (!add.length) return prev;
+  return [...prev, ...add].sort((a, b) => Number(a.id) - Number(b.id));
+}
+
 function buildFlow(graph: any, state: Record<string, any>): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
   const nodes = (graph.nodes || []).map((n: any) => ({
     id: n.id, type: n.type, position: n.position || { x: 0, y: 0 }, draggable: false,
@@ -28,40 +51,71 @@ function Inner() {
   const [graph, setGraph] = useState<any>({ nodes: [], edges: [] });
   const [state, setState] = useState<Record<string, any>>({});
   const [status, setStatus] = useState('');
+  const [wfId, setWfId] = useState('');
+  const [sel, setSel] = useState<string | null>(null);
+  const [onlyStep, setOnlyStep] = useState(false);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const logRef = useRef<HTMLDivElement>(null);
+  const lastLogId = useRef(0);
+  const statusRef = useRef('');
+
+  const applyRun = (run: any) => {
+    setGraph(run.graph);
+    setWfId(run.workflow_id);
+    setState((s) => mergeNodeState(s, run.node_state || {}));
+    setStatus((s) => forward(s, run.status));
+  };
+  const addLogs = (incoming: LogLine[]) => {
+    setLogs((prev) => mergeLogs(prev, incoming));
+    for (const l of incoming) lastLogId.current = Math.max(lastLogId.current, Number(l.id) || 0);
+  };
+  useEffect(() => { statusRef.current = status; }, [status]);
 
   useEffect(() => {
     let es: EventSource | null = null;
-    api.get(`/runs/${id}`).then((d) => {
-      setGraph(d.run.graph);
-      setState(d.run.node_state || {});
-      setStatus(d.run.status);
-    });
-    api.get(`/runs/${id}/logs`).then((d) => setLogs(d.logs));
+    let poll: ReturnType<typeof setInterval> | null = null;
+    let cancelled = false;
+
+    const refresh = async () => {
+      try {
+        const [r, l] = await Promise.all([
+          api.get(`/runs/${id}`),
+          api.get(`/runs/${id}/logs?after=${lastLogId.current}`),
+        ]);
+        if (cancelled) return;
+        applyRun(r.run);
+        addLogs(l.logs);
+        if (TERMINAL.includes(r.run.status) && poll) { clearInterval(poll); poll = null; }
+      } catch { /* transient; next tick retries */ }
+    };
+
+    refresh();
+    // Safety net: poll while the run is active, in case a live event is missed.
+    poll = setInterval(() => { if (!TERMINAL.includes(statusRef.current)) refresh(); }, 1500);
 
     es = new EventSource(streamUrl(id!));
+    es.addEventListener('snapshot', (e: any) => applyRun(JSON.parse(e.data).run));
     es.addEventListener('node.status', (e: any) => {
       const { nodeId, state: st } = JSON.parse(e.data);
-      setState((s) => ({ ...s, [nodeId]: st }));
+      setState((s) => mergeNodeState(s, { [nodeId]: st }));
     });
     es.addEventListener('run.status', (e: any) => {
       const { status } = JSON.parse(e.data);
-      setStatus(status);
-      if (['success', 'failed', 'cancelled'].includes(status)) { es?.close(); }
+      setStatus((s) => forward(s, status));
+      if (TERMINAL.includes(status)) { es?.close(); setTimeout(refresh, 300); } // final consistent read
     });
-    es.addEventListener('log', (e: any) => {
-      const l = JSON.parse(e.data);
-      setLogs((prev) => [...prev, l]);
-    });
+    es.addEventListener('log', (e: any) => addLogs([JSON.parse(e.data)]));
     es.addEventListener('done', () => es?.close());
-    es.onerror = () => { /* SSE auto-reconnects; snapshot already loaded */ };
-    return () => es?.close();
+    es.onerror = () => { /* EventSource reconnects on its own; polling covers the gap */ };
+
+    return () => { cancelled = true; es?.close(); if (poll) clearInterval(poll); };
   }, [id]);
 
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [logs]);
 
   const { nodes, edges } = buildFlow(graph, state);
+  const selNode = sel ? (graph.nodes || []).find((n: any) => n.id === sel) : null;
+  const selState = sel ? state[sel] : null;
   const st = STATUS_STYLE[status] || STATUS_STYLE.pending;
 
   const retry = async () => {
@@ -76,6 +130,8 @@ function Inner() {
         <Link to="/" className="btn">← Workflows</Link>
         <span className="font-semibold">Run</span>
         <span className={`badge ${st.bg} ${st.text}`}>{st.label}</span>
+        {wfId && <Link to={`/editor/${wfId}`} className="btn">Edit workflow</Link>}
+        {wfId && <Link to={`/workflows/${wfId}/runs`} className="btn">Run history</Link>}
         <div className="ml-auto flex gap-2">
           {['queued', 'running'].includes(status) && <button className="btn" onClick={cancel}>Cancel</button>}
           {status === 'failed' && <button className="btn btn-primary" onClick={retry}>↻ Retry from failed</button>}
@@ -84,16 +140,49 @@ function Inner() {
       <div className="flex-1 flex min-h-0">
         <div className="flex-1">
           <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView
-            nodesDraggable={false} nodesConnectable={false} elementsSelectable={false}
+            nodesDraggable={false} nodesConnectable={false} elementsSelectable
+            onNodeClick={(_, n) => setSel(n.id)} onPaneClick={() => setSel(null)}
             proOptions={{ hideAttribution: true }}>
             <Background color="#1e2636" gap={18} />
             <Controls showInteractive={false} />
           </ReactFlow>
         </div>
         <div className="w-96 border-l border-edge bg-panel flex flex-col">
-          <div className="px-4 py-2 border-b border-edge text-sm font-semibold">Execution log</div>
+          {selNode && (
+            <div className="border-b border-edge p-3 text-xs space-y-2 max-h-[50%] overflow-y-auto">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm">{selNode.label || selNode.id}</span>
+                <span className="badge bg-edge text-slate-300">{selNode.type}</span>
+                {selState && <span className={`badge ${(STATUS_STYLE[selState.status] || STATUS_STYLE.pending).bg} ${(STATUS_STYLE[selState.status] || STATUS_STYLE.pending).text}`}>{(STATUS_STYLE[selState.status] || STATUS_STYLE.pending).label}</span>}
+              </div>
+              {selState ? (
+                <>
+                  <div className="text-slate-400">
+                    attempts: {selState.attempts ?? 0}
+                    {selState.branch ? ` · branch taken: ${selState.branch}` : ''}
+                    {selState.startedAt && selState.finishedAt ? ` · ${new Date(selState.finishedAt).getTime() - new Date(selState.startedAt).getTime()} ms` : ''}
+                  </div>
+                  {selState.error && <div><div className="text-red-400 font-semibold">Error</div><pre className="text-red-300 whitespace-pre-wrap">{selState.error}</pre></div>}
+                  {selState.output !== undefined && (
+                    <div><div className="text-slate-400 font-semibold">Output</div>
+                      <pre className="bg-ink rounded p-2 overflow-x-auto max-h-48">{JSON.stringify(selState.output, null, 2)}</pre>
+                    </div>
+                  )}
+                  {selState.status === 'skipped' && <div className="text-slate-500">Not run: the branch leading here was not taken.</div>}
+                </>
+              ) : <div className="text-slate-500">Not reached yet.</div>}
+            </div>
+          )}
+          <div className="px-4 py-2 border-b border-edge text-sm font-semibold flex items-center gap-2">
+            Execution log
+            {selNode && (
+              <label className="ml-auto flex items-center gap-1 text-xs font-normal text-slate-400">
+                <input type="checkbox" checked={onlyStep} onChange={(e) => setOnlyStep(e.target.checked)} /> only this step
+              </label>
+            )}
+          </div>
           <div ref={logRef} className="flex-1 overflow-y-auto p-3 space-y-1 font-mono text-xs">
-            {logs.map((l) => (
+            {logs.filter((l) => !onlyStep || !sel || l.nodeId === sel).map((l) => (
               <div key={l.id} className="flex gap-2">
                 <span className="text-slate-600">{new Date(l.ts).toLocaleTimeString()}</span>
                 <span className={
@@ -111,5 +200,8 @@ function Inner() {
 }
 
 export default function RunView() {
-  return <ReactFlowProvider><Inner /></ReactFlowProvider>;
+  const { id } = useParams();
+  // Key by run id so navigating run -> retry run remounts with fresh state
+  // (otherwise the monotonic status merge would keep the old run's final status).
+  return <ReactFlowProvider><Inner key={id} /></ReactFlowProvider>;
 }

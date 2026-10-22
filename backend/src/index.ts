@@ -12,10 +12,12 @@ import { runRouter } from './routes/runs';
 import { credentialRouter } from './routes/credentials';
 import { scheduleRouter } from './routes/schedules';
 import { mockRouter } from './routes/mock';
+import { restoreSchedules } from './services/schedules';
 
 async function main() {
   await migrate();
   startWorker();
+  await restoreSchedules().catch((e) => console.warn('restoreSchedules failed:', e?.message));
 
   const app = express();
   app.set('trust proxy', 1);

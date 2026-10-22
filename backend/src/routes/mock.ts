@@ -34,6 +34,12 @@ mockRouter.get('/flaky', (req, res) => {
 });
 
 // Always 500 — demonstrates failure handling and the retry-from-failed feature.
+// Slow endpoint (capped at 20s): demonstrates per-step timeouts and run cancellation.
+mockRouter.get('/slow', (req, res) => {
+  const ms = Math.min(20000, Math.max(0, Number(req.query.ms) || 1000));
+  setTimeout(() => res.json({ slept: ms }), ms);
+});
+
 mockRouter.get('/always-fail', (_req, res) => res.status(500).json({ error: 'Intentional failure' }));
 
 mockRouter.post('/notify', (req, res) => res.json({ delivered: true, echo: req.body ?? null }));

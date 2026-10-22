@@ -1,6 +1,7 @@
 import { one, query } from '../db';
 import { scheduleCron, removeCron } from '../queue';
 import { createRun } from './runs';
+import { HttpError } from '../middleware/error';
 
 export async function listSchedules(userId: string, workflowId: string) {
   return query('SELECT id, cron, enabled, created_at FROM schedules WHERE user_id=$1 AND workflow_id=$2', [
@@ -13,7 +14,13 @@ export async function createSchedule(userId: string, workflowId: string, cron: s
     `INSERT INTO schedules(user_id, workflow_id, cron) VALUES ($1,$2,$3) RETURNING id`,
     [userId, workflowId, cron],
   );
-  await scheduleCron(row!.id, cron, async () => (await createRunFromSchedule(row!.id)) || '');
+  try {
+    await scheduleCron(row!.id, cron);
+  } catch (err: any) {
+    // Invalid cron pattern: remove the row so we never keep a schedule that can't fire.
+    await query('DELETE FROM schedules WHERE id=$1', [row!.id]);
+    throw new HttpError(400, `Invalid cron expression: ${err?.message || cron}`);
+  }
   return row;
 }
 
@@ -33,4 +40,12 @@ export async function createRunFromSchedule(scheduleId: string): Promise<string 
   if (!s || !s.enabled) return null;
   const run = await createRun(s.user_id, s.workflow_id, { trigger: 'schedule' });
   return run?.id ?? null;
+}
+
+/** Re-register every enabled schedule with the queue at boot (idempotent upsert). */
+export async function restoreSchedules() {
+  const rows = await query<{ id: string; cron: string }>('SELECT id, cron FROM schedules WHERE enabled=true');
+  for (const r of rows) {
+    try { await scheduleCron(r.id, r.cron); } catch (e: any) { console.warn(`Schedule ${r.id} skipped: ${e?.message}`); }
+  }
 }

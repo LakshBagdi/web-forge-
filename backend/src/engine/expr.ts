@@ -1,4 +1,4 @@
-import { ExecContext, resolveRef } from './context';
+import { ExecContext, resolveRef, resolveTemplates } from './context';
 
 /**
  * A small, safe boolean expression evaluator for condition nodes.
@@ -144,11 +144,15 @@ export function evaluateCondition(config: any, ctx: ExecContext): boolean {
     }
   }
   // structured form
-  const left = typeof config?.left === 'string' && config.left.trim().match(/^[A-Za-z_]/)
-    ? resolveRef(config.left, ctx)
-    : config?.left;
+  // Left accepts either a template ({{steps.x.output.y}}) or a bare path (steps.x.output.y).
+  // Anything else (a number, a quoted literal) is used as-is.
+  const hasTemplate = (v: any) => typeof v === 'string' && /\{\{[^}]+\}\}/.test(v);
+  let left = config?.left;
+  if (hasTemplate(left)) left = resolveTemplates(left, ctx);
+  else if (typeof left === 'string' && /^[A-Za-z_][\w.]*$/.test(left.trim())) left = resolveRef(left.trim(), ctx);
   const op = config?.operator || '==';
-  let right = config?.right;
+  // Right side may also use templates; otherwise it is a literal.
+  let right = hasTemplate(config?.right) ? resolveTemplates(config.right, ctx) : config?.right;
   if (op === 'exists') return left !== undefined && left !== null;
   if (op === 'truthy') return truthy(left);
   return compare(mapOp(op), left, right);
