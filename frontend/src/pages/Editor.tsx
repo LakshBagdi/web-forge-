@@ -54,6 +54,20 @@ function EditorInner() {
   const [toast, setToast] = useState('');
   const [panel, setPanel] = useState<null | 'versions' | 'schedule'>(null);
   const dirty = useRef(false);
+  // JSON handed to the run as {{input.*}}; remembered per workflow in this browser (optional convenience).
+  const inputKey = `ff_input_${id}`;
+  const [runInput, setRunInput] = useState('{}');
+  const [showInput, setShowInput] = useState(false);
+  useEffect(() => {
+    try { setRunInput(localStorage.getItem(inputKey) || '{}'); } catch { setRunInput('{}'); }
+  }, [inputKey]);
+  const changeInput = (v: string) => {
+    setRunInput(v);
+    try { localStorage.setItem(inputKey, v); } catch { /* storage unavailable */ }
+  };
+  let inputError = '';
+  try { const parsed = JSON.parse(runInput || '{}'); if (parsed === null || typeof parsed !== 'object') inputError = 'Must be a JSON object, e.g. {"id": 4}'; }
+  catch { inputError = 'Not valid JSON'; }
 
   const load = useCallback(() => api.get(`/workflows/${id}`).then((d) => {
     setName(d.workflow.name);
@@ -127,9 +141,10 @@ function EditorInner() {
   };
 
   const run = async () => {
+    if (inputError) { setShowInput(true); flash(`Run input: ${inputError}`); return; }
     await save(false);
     try {
-      const { run } = await api.post(`/runs/workflow/${id}`, { input: {} });
+      const { run } = await api.post(`/runs/workflow/${id}`, { input: JSON.parse(runInput || '{}') });
       nav(`/runs/${run.id}`);
     } catch (e: any) { flash(e.message); }
   };
@@ -175,6 +190,21 @@ function EditorInner() {
           <button className="btn" onClick={duplicate}>Duplicate</button>
           <button className="btn" onClick={() => save(true)} disabled={saving}>Save version</button>
           <button className="btn" onClick={() => save(false)} disabled={saving}>Save</button>
+          <div className="relative">
+            <button className="btn" onClick={() => setShowInput((v) => !v)} title="JSON input available to the run as {{input.field}}">
+              {'{ } Input'}{runInput.trim() !== '{}' && runInput.trim() !== '' ? ' •' : ''}
+            </button>
+            {showInput && (
+              <div className="absolute right-0 top-11 z-30 w-80 card p-3 space-y-2 shadow-2xl">
+                <div className="text-xs font-semibold text-slate-400">Run input (JSON object)</div>
+                <textarea className="input font-mono h-28" value={runInput} onChange={(e) => changeInput(e.target.value)} spellCheck={false}
+                  placeholder='{"id": 4, "city": "Bhopal"}' />
+                {inputError
+                  ? <div className="text-xs text-red-400">{inputError}</div>
+                  : <div className="text-xs text-slate-500">Read it in any field as <span className="font-mono">{'{{input.id}}'}</span>. Applies to manual runs.</div>}
+              </div>
+            )}
+          </div>
           <button className="btn btn-primary" onClick={run} disabled={errors.length > 0}>▶ Run</button>
         </div>
       </div>

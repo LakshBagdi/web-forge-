@@ -63,6 +63,9 @@ export default function Inspector({ node, onChange, onDelete, upstream = [] }: P
         {node.type !== 'trigger' && <button className="btn btn-danger ml-auto text-xs" onClick={onDelete}>Delete node</button>}
       </div>
       <p className="text-xs text-slate-400">{def.description}</p>
+      {node.type === 'trigger' && (
+        <p className="text-xs text-slate-400">Use the <span className="font-mono">{'{ } Input'}</span> button in the top bar to give a run some JSON input, then read it anywhere as <span className="font-mono">{'{{input.field}}'}</span>.</p>
+      )}
 
       <div><label className="label">Label</label>
         <input className="input" value={node.label || ''} onChange={(e) => onChange({ label: e.target.value })} />
@@ -100,6 +103,7 @@ export default function Inspector({ node, onChange, onDelete, upstream = [] }: P
               <input className="input font-mono" value={cfg.url || ''} placeholder="https://api.example.com/x" onChange={(e) => set({ url: e.target.value })} />
             </div>
           </div>
+          <div><label className="label">Query parameters (values support {'{{templates}}'})</label><KeyValueEditor value={cfg.query || {}} onChange={(query) => set({ query })} /></div>
           <div><label className="label">Headers</label><KeyValueEditor value={cfg.headers || {}} onChange={(headers) => set({ headers })} /></div>
           <div><label className="label">Authentication</label>
             <select className="input" value={cfg.credentialId || ''} onChange={(e) => set({ credentialId: e.target.value || undefined })}>
