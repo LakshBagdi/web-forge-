@@ -1,6 +1,6 @@
 # ⚡ FlowForge — Visual API Workflow Automation Platform
 
-> Web Forge 2026 · Zenith MANIT · **PS 04 — FlowForge**
+> Web Forge 2026 · Zenith MANIT · Online hackathon **PS 04 — FlowForge**
 
 Build multi-step API workflows on a drag-and-drop canvas, then execute them on a
 real backend engine with conditional branching, retries, timeouts, failure
