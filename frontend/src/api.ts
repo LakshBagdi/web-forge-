@@ -11,14 +11,31 @@ export function getToken() {
   return token;
 }
 
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) { super(message); this.status = status; }
+}
+
 async function request<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { ...(opts.headers as any) };
   if (opts.body) headers['content-type'] = 'application/json';
   if (token) headers['authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${BASE}/api${path}`, { ...opts, headers });
+  // Never wait forever: if the backend is down or stuck, fail with a clear message after 15 s.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/api${path}`, { ...opts, headers, signal: ctrl.signal });
+  } catch {
+    throw new ApiError('Cannot reach the server. Is the backend running (npm run dev in the backend folder, port 4000)?', 0);
+  } finally { clearTimeout(timer); }
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+  let data: any = {};
+  try { data = text ? JSON.parse(text) : {}; } catch { /* non-JSON body, e.g. a proxy error page */ }
+  if (!res.ok) {
+    const proxyDown = res.status >= 500 && !data?.error;
+    throw new ApiError(proxyDown ? 'The backend is not responding (is it running on port 4000?)' : (data?.error || `Request failed (${res.status})`), res.status);
+  }
   return data as T;
 }
 

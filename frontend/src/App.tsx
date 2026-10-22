@@ -8,8 +8,20 @@ import RunHistory from './pages/RunHistory';
 import Credentials from './pages/Credentials';
 
 function Protected({ children }: { children: JSX.Element }) {
-  const { user, loading } = useAuth();
+  const { user, loading, serverError } = useAuth();
   if (loading) return <div className="p-10 text-slate-400">Loading…</div>;
+  if (serverError) return (
+    <div className="max-w-lg mx-auto mt-24 card p-6 space-y-3">
+      <div className="font-semibold text-red-300">Can't reach the FlowForge server</div>
+      <p className="text-sm text-slate-400">{serverError}</p>
+      <ol className="text-sm text-slate-400 list-decimal ml-5 space-y-1">
+        <li>Start the backend: <span className="font-mono">cd backend</span> then <span className="font-mono">npm run dev</span> (it should print “FlowForge API on :4000”).</li>
+        <li>Make sure Postgres and Redis are running.</li>
+        <li>Check <span className="font-mono">http://localhost:4000/api/health</span> opens in your browser.</li>
+      </ol>
+      <button className="btn btn-primary" onClick={() => window.location.reload()}>Try again</button>
+    </div>
+  );
   if (!user) return <Navigate to="/login" replace />;
   return children;
 }

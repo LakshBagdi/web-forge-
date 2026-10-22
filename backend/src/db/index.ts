@@ -9,6 +9,7 @@ export const pool = new Pool({
   connectionString: config.databaseUrl,
   ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
   max: 10,
+  connectionTimeoutMillis: 5000, // fail fast instead of hanging forever when Postgres is unreachable
 });
 
 export async function query<T extends QueryResultRow = any>(text: string, params: unknown[] = []) {

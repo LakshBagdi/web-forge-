@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { api, setToken, getToken } from './api';
+import { api, setToken, getToken, ApiError } from './api';
 
 interface User { id: string; email: string; name: string; }
 interface AuthCtx {
   user: User | null;
   loading: boolean;
+  serverError: string;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => void;
@@ -16,6 +17,7 @@ export const useAuth = () => useContext(Ctx);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [serverError, setServerError] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -23,8 +25,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const { user } = await api.get('/auth/me');
           setUser(user);
-        } catch {
-          setToken(null);
+        } catch (e) {
+          // Only a real "not logged in" answer clears the token. A down/slow server must not log you out.
+          if (e instanceof ApiError && e.status === 401) setToken(null);
+          else setServerError(e instanceof Error ? e.message : 'Cannot reach the server');
         }
       }
       setLoading(false);
@@ -45,5 +49,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const logout = () => { setToken(null); setUser(null); };
 
-  return <Ctx.Provider value={{ user, loading, login, register, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, loading, serverError, login, register, logout }}>{children}</Ctx.Provider>;
 }
