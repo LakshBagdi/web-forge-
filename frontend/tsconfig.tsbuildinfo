@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/api.ts","./src/auth.tsx","./src/constants.ts","./src/main.tsx","./src/vite-env.d.ts","./src/components/Inspector.tsx","./src/flow/CustomNodes.tsx","./src/pages/Credentials.tsx","./src/pages/Editor.tsx","./src/pages/Login.tsx","./src/pages/RunView.tsx","./src/pages/Workflows.tsx"],"version":"5.6.3"}

@@ -1,0 +1,22 @@
+# One-click-ish deploy on Render. Create a free Postgres (Neon/Render) and Redis
+# (Upstash/Render) and paste their URLs into the env vars below in the dashboard.
+services:
+  - type: web
+    name: flowforge-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CREDENTIAL_KEY
+        sync: false   # paste: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false   # your Vercel URL, e.g. https://flowforge.vercel.app
