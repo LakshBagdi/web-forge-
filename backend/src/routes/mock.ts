@@ -74,9 +74,20 @@ mockRouter.post('/latest-video/publish', (req, res) => {
 // OAuth2 token endpoint: exchanges refresh token "good-refresh" for a short-lived access token.
 // ?rotate=1 on the token URL makes it hand back a NEW refresh token (like X/Twitter does).
 const retiredTokens = new Set<string>();
+// Stand-in for the provider's "Allow" page: immediately sends the browser back with a code (used by the Connect button demo/test).
+mockRouter.get('/oauth/authorize', (req, res) => {
+  const ru = String(req.query.redirect_uri || '');
+  if (!ru) return res.status(400).send('missing redirect_uri');
+  const u = new URL(ru); u.searchParams.set('code', 'mock-code'); u.searchParams.set('state', String(req.query.state || ''));
+  res.redirect(u.toString());
+});
 mockRouter.post('/oauth/token', (req, res) => {
   const b = req.body || {};
   const basic = (req.headers.authorization || '').startsWith('Basic ');
+  if (b.grant_type === 'authorization_code') {
+    if (b.code !== 'mock-code') return res.status(400).json({ error: 'invalid_grant' });
+    return res.json({ access_token: `at-${Date.now()}`, expires_in: 3600, token_type: 'Bearer', refresh_token: 'good-refresh' });
+  }
   if (b.grant_type !== 'refresh_token') return res.status(400).json({ error: 'unsupported_grant_type' });
   const rt = String(b.refresh_token);
   const valid = (rt === 'good-refresh' || rt.startsWith('rt-')) && !retiredTokens.has(rt);

@@ -340,6 +340,34 @@ ok('schedule: one-time never fires twice',(await call('/runs?workflowId='+w.work
   ok('empty/unknown-variable message -> clear "message is empty" error',d.status==='failed'&&/message is empty/.test(d.error||JSON.stringify(d)),JSON.stringify(d.error));
 }
 
+// "Connect" button flow (bring-your-own app): start -> provider allow page -> callback -> saved credential that works
+{
+  const t=await reg(); const base='http://localhost:5173';
+  const st=await call('/oauth/start',t,'POST',{provider:'mock',name:'Connected demo',client_id:'mock-client',client_secret:'s3cret',redirectBase:ROOT});
+  ok('oauth start returns an allow-page address + the redirect address',st.s===200&&/oauth\/authorize\?/.test(st.authUrl||'')&&/\/api\/oauth\/callback$/.test(st.redirectUri||''),JSON.stringify(st));
+  const a=await fetch(st.authUrl,{redirect:'manual'}); const loc=a.headers.get('location')||'';
+  ok('provider sends the browser back to FlowForge with a code',/\/api\/oauth\/callback\?code=mock-code&state=/.test(loc),loc);
+  const cb=await fetch(loc,{redirect:'manual'}); const back=cb.headers.get('location')||'';
+  ok('callback saves the login and returns to the Credentials page',/^\/credentials\?connected=Connected\+demo/.test(back),back);
+  const again=await fetch(loc,{redirect:'manual'}); const back2=again.headers.get('location')||'';
+  ok('a used link cannot be replayed',/oauth_error=/.test(back2),back2);
+  const bad=await fetch(ROOT+'/api/oauth/callback?code=x&state=nope',{redirect:'manual'});
+  ok('unknown state -> friendly error, no crash',/oauth_error=/.test(bad.headers.get('location')||''));
+  const noauth=await call('/oauth/start',null,'POST',{provider:'mock',name:'x',client_id:'y',redirectBase:ROOT});
+  ok('start needs a login',noauth.s===401);
+  const cr=(await call('/credentials',t)).credentials.find(c=>c.name==='Connected demo');
+  ok('credential exists as oauth2',cr&&cr.type==='oauth2',JSON.stringify(cr));
+  const w=(await mk(t,'conn-run',[T,N('h','http','Protected',{method:'GET',url:U+'/mock/protected',credentialId:cr?.id})],[E('e','t','h')])).workflow;
+  const r=(await call('/runs/workflow/'+w.id,t,'POST',{input:{}})).run; const d=await waitRun(t,r.id);
+  ok('a step using the connected login runs successfully',d.status==='success',JSON.stringify(d.error||d.status));
+  const g=await call('/oauth/start',t,'POST',{provider:'google',name:'G',client_id:'cid.apps.googleusercontent.com',client_secret:'x',redirectBase:'https://example.onrender.com'});
+  const gu=new URL(g.authUrl||'http://x');
+  ok('google link asks for offline access + consent + the right redirect',gu.host==='accounts.google.com'&&gu.searchParams.get('access_type')==='offline'&&gu.searchParams.get('prompt')==='consent'&&gu.searchParams.get('redirect_uri')==='https://example.onrender.com/api/oauth/callback'&&/calendar\.events/.test(gu.searchParams.get('scope')||''),g.authUrl);
+  const xx=await call('/oauth/start',t,'POST',{provider:'x',name:'X',client_id:'xid',client_secret:'x',redirectBase:'https://example.onrender.com'});
+  const xu=new URL(xx.authUrl||'http://x');
+  ok('x link uses PKCE and offline.access',xu.searchParams.get('code_challenge_method')==='S256'&&/offline\.access/.test(xu.searchParams.get('scope')||''),xx.authUrl);
+}
+
 // SSRF variants
 for (const [name,url] of [['metadata','http://169.254.169.254/latest/'],['decimal ip','http://2130706433:4000/api/health'.replace('2130706433','2852039166')],['ipv6 loopback','http://[::1]:4000/api/health'],['file scheme','file:///etc/passwd']]) {
   w=await mk(A,'ssrf-'+name,[T,N('h','http','H',{method:'GET',url})],[E('e1','t','h')]);

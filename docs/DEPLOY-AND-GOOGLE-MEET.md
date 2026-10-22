@@ -41,24 +41,19 @@ Goal: FlowForge creates a Google Calendar event with a Meet link at a time you c
 **C4. Create the login (Client ID + Secret)**
 1. **APIs & Services** → **Credentials** → **+ Create credentials** → **OAuth client ID**.
 2. Application type **Web application**, name `FlowForge`.
-3. Under **Authorized redirect URIs** → **+ Add URI** → paste exactly: `https://developers.google.com/oauthplayground` → **Create**.
-4. Copy the **Client ID** and **Client secret** (keep them for C6).
+3. Open FlowForge → **Credentials** → pick *Login that renews itself (OAuth 2)*. Under "Redirect address" click **Copy**.
+4. Back in Google, under **Authorized redirect URIs** → **+ Add URI** → paste it (it looks like `https://YOUR-APP.onrender.com/api/oauth/callback`) → **Create**.
+5. Copy the **Client ID** and **Client secret**.
 
-**C5. Get the refresh token (one time)**
-1. Open https://developers.google.com/oauthplayground
-2. Click the ⚙ gear (top right) → tick **Use your own OAuth credentials** → paste Client ID and Client secret → Close.
-3. Left box "Input your own scopes" → paste `https://www.googleapis.com/auth/calendar.events` → **Authorize APIs**.
-4. Pick your Google account → if you see "Google hasn't verified this app" → **Advanced** → **Go to FlowForge (unsafe)** → **Continue/Allow**.
-5. Back in the Playground press **Exchange authorization code for tokens**. Copy the **Refresh token** (long text starting `1//`).
+**C5 + C6. Connect (one click, like n8n)**
+1. FlowForge → **Credentials**. Name: `My Google`. Kind: *Login that renews itself (OAuth 2)*.
+2. Paste the Client ID and Client secret. Leave Scope empty (it defaults to Google Calendar events).
+3. Press **Connect with Google** → choose your account → (if it warns "Google hasn't verified this app": **Advanced → Go to FlowForge (unsafe)**) → **Allow**.
+4. You land back on Credentials with a green "Connected!" message. Done — no refresh token to copy.
 
-**C6. Save it in FlowForge**
-1. FlowForge → top menu **Credentials** → fill:
-   - Name: `My Google`
-   - Kind: **Login that renews itself (OAuth 2)**
-   - Click the blue **Google** link next to "Fill token URL for" (fills the Token URL)
-   - Client ID, Client secret, Refresh token = from above
-   - Scope: `https://www.googleapis.com/auth/calendar.events`
-   - Save.
+(Same for X: create the app, put the Redirect address in its *Callback URL*, paste Client ID/secret, press **Connect with X**.)
+
+*Fallback:* under "Advanced" on that page you can still paste a refresh token you got elsewhere (e.g. Google OAuth Playground).
 
 **C7. Use the template**
 1. Home → template **Create a real Google Meet (at a set time)**.
@@ -73,6 +68,6 @@ Goal: FlowForge creates a Google Calendar event with a Meet link at a time you c
 | `invalid_grant` | Refresh token expired/revoked (Testing mode = 7 days). Repeat C5, update the credential, or Publish app (C3.4). |
 | `403 accessNotConfigured` | Calendar API not enabled (C2). |
 | `403 insufficientPermissions` | Scope in C5/C6 must be `https://www.googleapis.com/auth/calendar.events`. |
-| `redirect_uri_mismatch` | Redirect URI in C4 must be exactly `https://developers.google.com/oauthplayground`. |
+| `redirect_uri_mismatch` | The redirect address in Google (C4) must be exactly the one shown on FlowForge's Credentials page. |
 | `access_denied` in Playground | Your Gmail isn't added as a test user (C3.3). |
 | Link missing in Discord | The Create Meet step failed — open the run and read that step's error. |

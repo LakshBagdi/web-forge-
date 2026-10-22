@@ -15,6 +15,7 @@ import { credentialRouter } from './routes/credentials';
 import { scheduleRouter } from './routes/schedules';
 import { mockRouter } from './routes/mock';
 import { hooksRouter } from './routes/hooks';
+import { oauthRouter } from './routes/oauth';
 import { restoreSchedules } from './services/schedules';
 
 // A stray failed promise must never take the whole server down.
@@ -44,6 +45,7 @@ async function main() {
   // Basic abuse protection on auth + run triggers.
   const limiter = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
   app.use('/api/auth', limiter, authRouter);
+  app.use('/api/oauth', limiter, oauthRouter);
   app.use('/api/workflows', workflowRouter);
   app.use('/api/runs', runRouter);
   app.use('/api/credentials', credentialRouter);

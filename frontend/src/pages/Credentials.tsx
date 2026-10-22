@@ -24,6 +24,16 @@ export default function Credentials() {
   const [type, setType] = useState<(typeof TYPES)[number]>('bearer');
   const [fields, setFields] = useState<Record<string, string>>({ token: '' });
   const [err, setErr] = useState('');
+  const [banner, setBanner] = useState<{ ok: boolean; text: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const redirectUrl = `${window.location.origin}/api/oauth/callback`;
+  useEffect(() => {
+    // coming back from Google / X after pressing Allow
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('connected')) setBanner({ ok: true, text: `✓ Connected! “${q.get('connected')}” is saved. Pick it under Authentication on your step.` });
+    else if (q.get('oauth_error')) setBanner({ ok: false, text: q.get('oauth_error')! });
+    if (q.get('connected') || q.get('oauth_error')) window.history.replaceState(null, '', window.location.pathname);
+  }, []);
 
   const load = () => api.get('/credentials').then((d) => setCreds(d.credentials));
   useEffect(() => { load(); }, []);
@@ -52,6 +62,16 @@ export default function Credentials() {
       load();
     } catch (e: any) { setErr(e.message); }
   };
+  const connect = async (provider: 'google' | 'x') => {
+    setErr('');
+    if (!name.trim()) { setErr('Give it a name first, e.g. “My Google”.'); return; }
+    if (!(fields.client_id ?? '').trim() || !(fields.client_secret ?? '').trim()) { setErr('Paste your Client ID and Client secret first (from your Google / X developer page).'); return; }
+    try {
+      const r = await api.post('/oauth/start', { provider, name: name.trim(), client_id: fields.client_id.trim(), client_secret: fields.client_secret.trim(), scope: (fields.scope || '').trim() || undefined, redirectBase: window.location.origin });
+      window.location.href = r.authUrl;
+    } catch (e: any) { setErr(e.message); }
+  };
+  const copyRedirect = async () => { try { await navigator.clipboard.writeText(redirectUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked */ } };
   const remove = async (id: string) => { if (!confirm('Delete this saved login? Steps that use it will stop working until you pick another.')) return; await api.del(`/credentials/${id}`); load(); };
 
   return (
@@ -59,6 +79,7 @@ export default function Credentials() {
       <h1 className="text-2xl font-bold mb-1">Credentials</h1>
       <p className="text-slate-400 text-sm mb-6">Keys and passwords you save here are encrypted and never shown again. Steps use them behind the scenes — pick one under <b>Authentication</b> on an HTTP step.</p>
 
+      {banner && <div className={`mb-4 rounded-md border p-3 text-sm ${banner.ok ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200' : 'border-red-500/40 bg-red-500/10 text-red-200'}`} data-testid="oauth-banner">{banner.text}</div>}
       <div className="card p-4 mb-6 space-y-3">
         <div className="flex gap-2">
           <div className="flex-1"><label className="label">Name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. My X account" /></div>
@@ -69,21 +90,53 @@ export default function Credentials() {
           </div>
         </div>
         {TYPE_HELP[type] && <div className="text-xs text-slate-400">{TYPE_HELP[type]}</div>}
-        {type === 'oauth2' && (
-          <div className="text-xs text-slate-400 space-y-1">
-            <div>Keeps Google / YouTube / X (Twitter) / Microsoft logins working: FlowForge swaps your long-lived <b>refresh token</b> for a fresh access token on every run.</div>
-            <div className="flex gap-1">Fill token URL for: <button className="text-accent" onClick={() => setFields({ ...fields, ...PRESETS.google })}>Google</button> · <button className="text-accent" onClick={() => setFields({ ...fields, ...PRESETS.x })}>X</button></div>
+        {type === 'oauth2' ? (
+          <div className="space-y-3">
+            <div className="text-xs text-slate-400">You bring your own Google / X app (like n8n). Steps: <b>1)</b> copy the address below into your app’s “redirect / callback URL”. <b>2)</b> paste its Client ID and secret here. <b>3)</b> press <b>Connect</b> and click Allow.</div>
+            <div>
+              <label className="label">Redirect address — add this exactly in Google Cloud (Authorized redirect URIs) or the X app (Callback URL)</label>
+              <div className="flex gap-2">
+                <input className="input font-mono text-xs" readOnly value={redirectUrl} onFocus={(e) => e.currentTarget.select()} data-testid="redirect-url" />
+                <button type="button" className="btn shrink-0" onClick={copyRedirect}>{copied ? 'Copied ✓' : 'Copy'}</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
+              {['client_id', 'client_secret', 'scope'].map((f) => (
+                <div key={f} className={f === 'scope' ? 'col-span-2' : ''}><label className="label">{FIELD_LABEL[f]}{f === 'scope' ? ' (optional — leave empty to use the usual one)' : ''}</label>
+                  <input className="input" data-testid={`oauth-${f}`} type={SECRET.includes(f) ? 'password' : 'text'} autoComplete="off" value={fields[f] ?? ''} onChange={(e) => setFields({ ...fields, [f]: e.target.value })} />
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn btn-primary" data-testid="connect-google" onClick={() => connect('google')}>Connect with Google</button>
+              <button type="button" className="btn btn-primary" data-testid="connect-x" onClick={() => connect('x')}>Connect with X</button>
+            </div>
+            <details data-testid="oauth-advanced" className="rounded border border-edge/70 p-2">
+              <summary className="text-xs text-slate-400 cursor-pointer select-none">Advanced: paste a refresh token yourself instead</summary>
+              <div className="mt-2 space-y-2">
+                <div className="text-xs text-slate-400 flex gap-1">Fill token URL for: <button className="text-accent" onClick={() => setFields({ ...fields, ...PRESETS.google })}>Google</button> · <button className="text-accent" onClick={() => setFields({ ...fields, ...PRESETS.x })}>X</button></div>
+                <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
+                  {['token_url', 'refresh_token', 'client_auth'].map((f) => (
+                    <div key={f}><label className="label">{FIELD_LABEL[f]}{f === 'client_auth' ? ' (body or basic — X needs basic)' : ''}</label>
+                      <input className="input" data-testid={`oauth-${f}`} type={SECRET.includes(f) ? 'password' : 'text'} autoComplete="off" value={fields[f] ?? ''} onChange={(e) => setFields({ ...fields, [f]: e.target.value })} />
+                    </div>
+                  ))}
+                </div>
+                <button className="btn" disabled={!name} onClick={create}>Save credential</button>
+              </div>
+            </details>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
+            {fieldSpec[type].map((f) => (
+              <div key={f}><label className="label">{FIELD_LABEL[f] || f}</label>
+                <input className="input" type={SECRET.includes(f) ? 'password' : 'text'} autoComplete="off" value={fields[f] ?? ''} onChange={(e) => setFields({ ...fields, [f]: e.target.value })} />
+              </div>
+            ))}
           </div>
         )}
-        <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
-          {fieldSpec[type].map((f) => (
-            <div key={f}><label className="label">{FIELD_LABEL[f] || f}{f === 'client_auth' ? ' (body or basic — X needs basic)' : f === 'scope' ? ' (optional)' : ''}</label>
-              <input className="input" type={SECRET.includes(f) ? 'password' : 'text'} autoComplete="off" value={fields[f] ?? ''} onChange={(e) => setFields({ ...fields, [f]: e.target.value })} />
-            </div>
-          ))}
-        </div>
         {err && <div className="text-red-400 text-sm">{err}</div>}
-        <button className="btn btn-primary" disabled={!name} onClick={create}>Save credential</button>
+        {type !== 'oauth2' && <button className="btn btn-primary" disabled={!name} onClick={create}>Save credential</button>}
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
