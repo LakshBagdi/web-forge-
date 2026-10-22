@@ -67,7 +67,15 @@ function EditorInner() {
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
-  const onNodesChange = useCallback((c: NodeChange[]) => { setNodes((n) => applyNodeChanges(c, n)); dirty.current = true; }, []);
+  // The Start (trigger) node is mandatory and cannot be re-added from the palette, so never let a
+  // keyboard delete remove it.
+  const onNodesChange = useCallback((c: NodeChange[]) => {
+    setNodes((n) => {
+      const keep = c.filter((ch) => !(ch.type === 'remove' && (n.find((x) => x.id === ch.id)?.data as any)?.nodeType === 'trigger'));
+      return applyNodeChanges(keep, n);
+    });
+    dirty.current = true;
+  }, []);
   const onEdgesChange = useCallback((c: EdgeChange[]) => { setEdges((e) => applyEdgeChanges(c, e)); dirty.current = true; }, []);
   const onConnect = useCallback((c: Connection) => {
     setEdges((e) => addEdge({

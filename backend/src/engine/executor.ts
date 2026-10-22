@@ -120,8 +120,9 @@ async function runNodeWithRetry(
   ctx: ExecContext,
   credCache: Map<string, DecryptedCredential | null>,
 ): Promise<NodeRunState> {
-  const maxAttempts = Math.max(1, node.retry?.maxAttempts ?? 1);
-  const backoff = Math.max(0, node.retry?.backoffMs ?? 500);
+  // Hard limits enforced server-side: the UI input is not a security boundary.
+  const maxAttempts = Math.min(10, Math.max(1, Math.floor(Number(node.retry?.maxAttempts ?? 1)) || 1));
+  const backoff = Math.min(60_000, Math.max(0, Number(node.retry?.backoffMs ?? 500) || 0));
   // A Delay node legitimately waits longer than the default step timeout, so size its timeout to the wait.
   const defaultTimeout = node.type === 'delay'
     ? Math.min(Math.max(Number(node.config?.ms) || 0, 0), 120_000) + 2_000
