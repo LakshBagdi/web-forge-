@@ -57,7 +57,8 @@ export function startWorker() {
         throw err;
       }
     },
-    { connection, concurrency: config.runConcurrency },
+    // maxStalledCount 0: never silently re-run a stalled job (it could repeat side effects)
+    { connection, concurrency: config.runConcurrency, maxStalledCount: 0 },
   );
   worker.on('failed', (job, err) => console.error(`[worker] job ${job?.id} failed:`, err?.message));
   return worker;

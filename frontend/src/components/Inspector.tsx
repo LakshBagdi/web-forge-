@@ -135,6 +135,13 @@ export default function Inspector({ node, onChange, onDelete, upstream = [] }: P
               <input className="input font-mono" value={cfg.right ?? ''} onChange={(e) => set({ right: e.target.value })} />
             </div>
           )}
+          <div className="border-t border-edge pt-3">
+            <label className="label">Or a full expression (overrides the fields above)</label>
+            <textarea className="input font-mono h-16" value={cfg.expression || ''}
+              placeholder="steps.http1.output.status == 200 && (input.amount > 100 || input.vip == true)"
+              onChange={(e) => set({ expression: e.target.value || undefined })} />
+            <p className="text-xs text-slate-500 mt-1">Supports && || ! ( ) == != &gt; &gt;= &lt; &lt;= contains startsWith endsWith matches.</p>
+          </div>
           <p className="text-xs text-slate-500">Connect the green handle for the true branch, red for false.</p>
         </>
       )}
