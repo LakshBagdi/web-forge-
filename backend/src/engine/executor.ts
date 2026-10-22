@@ -1,8 +1,9 @@
 import { WorkflowGraph, WorkflowNode, NodeRunState } from './types';
 import { topoOrder, nodeMap, incoming, outgoing } from './dag';
-import { ExecContext } from './context';
+import { ExecContext, makeNow } from './context';
 import { executeNode, NodeServices, DecryptedCredential } from './nodes';
-import { getCredentialDecrypted } from '../services/credentials';
+import { getCredentialDecrypted, updateCredentialData } from '../services/credentials';
+import { swapWatchValue } from '../services/watchState';
 import { getRun, setRunStatus, saveNodeState, appendLog, isCancelled } from '../services/runStore';
 import { config } from '../config';
 
@@ -47,7 +48,7 @@ export async function executeRun(runId: string): Promise<void> {
   }
 
   const nodeState = new Map<string, NodeRunState>();
-  const ctx: ExecContext = { trigger: { input: run.input }, input: run.input, steps: {}, vars: {} };
+  const ctx: ExecContext = { trigger: { input: run.input }, input: run.input, steps: {}, vars: {}, now: makeNow() };
 
   // Preload reused node outputs into context and mark them success.
   for (const id of reuse) {
@@ -79,7 +80,7 @@ export async function executeRun(runId: string): Promise<void> {
           const src = nodeState.get(e.source);
           if (!src || src.status !== 'success') return false;
           const srcNode = map.get(e.source);
-          if (srcNode?.type === 'condition' && e.sourceHandle) {
+          if ((srcNode?.type === 'condition' || srcNode?.type === 'watch') && e.sourceHandle) {
             return src.branch === e.sourceHandle;
           }
           return true;
@@ -95,7 +96,7 @@ export async function executeRun(runId: string): Promise<void> {
 
       if (++executed > config.maxStepsPerRun) throw new Error('Exceeded maximum steps per run');
 
-      const result = await runNodeWithRetry(runId, node, ctx, credCache);
+      const result = await runNodeWithRetry(runId, node, ctx, credCache, { workflowId: run.workflow_id, userId: run.user_id });
       nodeState.set(nodeId, result);
       if (result.status === 'failed') {
         await setRunStatus(runId, 'failed', `Node "${node.label || nodeId}" failed: ${result.error}`);
@@ -119,6 +120,7 @@ async function runNodeWithRetry(
   node: WorkflowNode,
   ctx: ExecContext,
   credCache: Map<string, DecryptedCredential | null>,
+  owner: { workflowId: string; userId: string },
 ): Promise<NodeRunState> {
   // Hard limits enforced server-side: the UI input is not a security boundary.
   const maxAttempts = Math.min(10, Math.max(1, Math.floor(Number(node.retry?.maxAttempts ?? 1)) || 1));
@@ -139,9 +141,11 @@ async function runNodeWithRetry(
     const controller = new AbortController();
     const svc: NodeServices = {
       getCredential: async (id) => {
-        if (!credCache.has(id)) credCache.set(id, await getCredentialDecrypted(id));
+        if (!credCache.has(id)) credCache.set(id, await getCredentialDecrypted(id, owner.userId));
         return credCache.get(id)!;
       },
+      updateCredential: (id, data) => updateCredentialData(id, owner.userId, data),
+      swapWatchValue: (nodeId, value) => swapWatchValue(owner.workflowId, nodeId, value),
       log: (level, message, data) => { void appendLog(runId, node.id, level, message, data); },
       signal: controller.signal,
     };

@@ -43,3 +43,55 @@ mockRouter.get('/slow', (req, res) => {
 mockRouter.get('/always-fail', (_req, res) => res.status(500).json({ error: 'Intentional failure' }));
 
 mockRouter.post('/notify', (req, res) => res.json({ delivered: true, echo: req.body ?? null }));
+
+// ---- Offline stand-ins for real services, so triggers/OAuth/Meet flows can be demoed and tested ----
+
+// A "channel" whose latest video id changes when something is published (YouTube/RSS stand-in).
+const channels = new Map<string, number>();
+mockRouter.get('/latest-video', (req, res) => {
+  const ch = String(req.query.channel || 'demo');
+  const n = channels.get(ch) ?? 1;
+  res.json({ channel: ch, id: `vid${n}`, title: `Video #${n} from ${ch}`, url: `https://youtube.example/watch?v=vid${n}` });
+});
+mockRouter.post('/latest-video/publish', (req, res) => {
+  const ch = String(req.query.channel || 'demo');
+  channels.set(ch, (channels.get(ch) ?? 1) + 1);
+  res.json({ ok: true, channel: ch, latest: `vid${channels.get(ch)}` });
+});
+
+// OAuth2 token endpoint: exchanges refresh token "good-refresh" for a short-lived access token.
+// ?rotate=1 on the token URL makes it hand back a NEW refresh token (like X/Twitter does).
+const retiredTokens = new Set<string>();
+mockRouter.post('/oauth/token', (req, res) => {
+  const b = req.body || {};
+  const basic = (req.headers.authorization || '').startsWith('Basic ');
+  if (b.grant_type !== 'refresh_token') return res.status(400).json({ error: 'unsupported_grant_type' });
+  const rt = String(b.refresh_token);
+  const valid = (rt === 'good-refresh' || rt.startsWith('rt-')) && !retiredTokens.has(rt);
+  if (!valid) return res.status(400).json({ error: 'invalid_grant' });
+  if (!basic && b.client_id !== 'mock-client') return res.status(401).json({ error: 'invalid_client' });
+  const out: any = { access_token: `at-${Date.now()}`, expires_in: 3600, token_type: 'Bearer' };
+  if (req.query.rotate === '1' && rt.startsWith('rt-')) { retiredTokens.add(rt); out.refresh_token = rt + '+'; } // old one dies, like X
+  res.json(out);
+});
+
+// Google Calendar stand-in: creating an event with conferenceData returns a Meet link.
+mockRouter.post('/calendar/events', (req, res) => {
+  // No auth header: allowed (so the starter template works offline). With one, it must be a token from /mock/oauth/token.
+  const auth = String(req.headers.authorization || '');
+  if (auth && !auth.startsWith('Bearer at-')) return res.status(401).json({ error: 'unauthorized' });
+  const b = req.body || {};
+  const id = Math.random().toString(36).slice(2, 8);
+  res.json({
+    id, summary: b.summary ?? '(no title)', start: b.start, end: b.end,
+    hangoutLink: b.conferenceData ? `https://meet.google.com/mock-${id}` : undefined,
+    status: 'confirmed',
+  });
+});
+
+// Generic bearer-protected endpoint for credential demos.
+mockRouter.get('/protected', (req, res) => {
+  const auth = String(req.headers.authorization || '');
+  if (!auth.startsWith('Bearer ')) return res.status(401).json({ error: 'missing bearer token' });
+  res.json({ ok: true, tokenPrefix: auth.slice(7, 10) });
+});

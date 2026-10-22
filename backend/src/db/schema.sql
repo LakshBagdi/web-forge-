@@ -84,3 +84,22 @@ CREATE TABLE IF NOT EXISTS schedules (
   enabled      BOOLEAN NOT NULL DEFAULT TRUE,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Webhook trigger: secret token per workflow (NULL until the user opens the webhook panel).
+ALTER TABLE workflows ADD COLUMN IF NOT EXISTS webhook_token TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS workflows_webhook_token_idx ON workflows(webhook_token) WHERE webhook_token IS NOT NULL;
+
+-- Schedules: repeating (cron + timezone) OR one-time (run_at).
+ALTER TABLE schedules ALTER COLUMN cron DROP NOT NULL;
+ALTER TABLE schedules ADD COLUMN IF NOT EXISTS tz TEXT NOT NULL DEFAULT 'UTC';
+ALTER TABLE schedules ADD COLUMN IF NOT EXISTS run_at TIMESTAMPTZ;
+ALTER TABLE schedules ADD COLUMN IF NOT EXISTS fired_at TIMESTAMPTZ;
+
+-- Memory for "Watch for change" nodes: last value seen, per workflow + node.
+CREATE TABLE IF NOT EXISTS workflow_state (
+  workflow_id UUID NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+  node_id     TEXT NOT NULL,
+  value       TEXT NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (workflow_id, node_id)
+);

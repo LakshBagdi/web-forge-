@@ -9,7 +9,7 @@ credentialRouter.use(requireAuth);
 
 const schema = z.object({
   name: z.string().min(1),
-  type: z.enum(['bearer', 'basic', 'api_key', 'header']),
+  type: z.enum(['bearer', 'basic', 'api_key', 'header', 'oauth2']),
   data: z.record(z.string(), z.string()),
 });
 

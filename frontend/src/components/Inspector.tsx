@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { NODE_DEFS, NodeType, OPERATORS } from '../constants';
+import WebhookPanel from './WebhookPanel';
 
 interface Props {
   node: { id: string; type: NodeType; label?: string; config: any; retry?: any; timeoutMs?: number } | null;
   onChange: (patch: { label?: string; config?: any; retry?: any; timeoutMs?: number }) => void;
   onDelete: () => void;
   upstream?: { id: string; label: string; type: NodeType }[];
+  workflowId?: string;
 }
 
 /** Click-to-copy chip for a template reference like {{steps.http1.output.body}}. */
@@ -44,7 +46,7 @@ function KeyValueEditor({ value, onChange }: { value: Record<string, string>; on
   );
 }
 
-export default function Inspector({ node, onChange, onDelete, upstream = [] }: Props) {
+export default function Inspector({ node, onChange, onDelete, upstream = [], workflowId }: Props) {
   const [creds, setCreds] = useState<{ id: string; name: string; type: string }[]>([]);
   useEffect(() => { api.get('/credentials').then((d) => setCreds(d.credentials)).catch(() => {}); }, []);
 
@@ -66,6 +68,7 @@ export default function Inspector({ node, onChange, onDelete, upstream = [] }: P
       {node.type === 'trigger' && (
         <p className="text-xs text-slate-400">Use the <span className="font-mono">{'{ } Input'}</span> button in the top bar to give a run some JSON input, then read it anywhere as <span className="font-mono">{'{{input.field}}'}</span>.</p>
       )}
+      {node.type === 'trigger' && workflowId && <WebhookPanel workflowId={workflowId} />}
 
       <div><label className="label">Label</label>
         <input className="input" value={node.label || ''} onChange={(e) => onChange({ label: e.target.value })} />
@@ -83,7 +86,11 @@ export default function Inspector({ node, onChange, onDelete, upstream = [] }: P
                   <RefChip text={`{{steps.${u.id}.output.body}}`} />
                   <RefChip text={`{{steps.${u.id}.output.status}}`} />
                 </>}
-                {u.type !== 'http' && <RefChip text={`{{steps.${u.id}.output}}`} />}
+                {u.type === 'watch' && <>
+                  <RefChip text={`{{steps.${u.id}.output.current}}`} />
+                  <RefChip text={`{{steps.${u.id}.output.previous}}`} />
+                </>}
+                {u.type !== 'http' && u.type !== 'watch' && <RefChip text={`{{steps.${u.id}.output}}`} />}
               </div>
             </div>
           ))}
@@ -147,6 +154,22 @@ export default function Inspector({ node, onChange, onDelete, upstream = [] }: P
             <p className="text-xs text-slate-500 mt-1">Supports && || ! ( ) == != &gt; &gt;= &lt; &lt;= contains startsWith endsWith matches.</p>
           </div>
           <p className="text-xs text-slate-500">Connect the green handle for the true branch, red for false.</p>
+        </>
+      )}
+
+      {node.type === 'watch' && (
+        <>
+          <div><label className="label">Value to watch (use a {'{{template}}'})</label>
+            <input className="input font-mono" value={cfg.value || ''} placeholder="{{steps.http1.output.body.items.0.id}}" onChange={(e) => set({ value: e.target.value })} />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={cfg.fireOnFirstRun === true} onChange={(e) => set({ fireOnFirstRun: e.target.checked })} />
+            Also fire on the very first check
+          </label>
+          <p className="text-xs text-slate-500">
+            Each run compares this value with the one saved last time. Different → the green (changed) branch runs; same → the red branch.
+            The first check just saves a baseline, so old items don't trigger anything. Pair it with a ⏰ repeating schedule.
+          </p>
         </>
       )}
 

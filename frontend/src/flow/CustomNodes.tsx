@@ -82,10 +82,23 @@ export function DelayNode({ data, selected }: NodeProps<FlowNodeData>) {
   );
 }
 
+export function WatchNode({ data, selected }: NodeProps<FlowNodeData>) {
+  return (
+    <Shell data={data} selected={selected}>
+      <div className="font-mono truncate">{data.config.value || 'pick a value to watch'}</div>
+      <div className="flex justify-between mt-1 text-[10px]"><span className="text-emerald-400">changed ↑</span><span className="text-red-400">same ↓</span></div>
+      <Handle type="target" position={Position.Left} />
+      <Handle id="true" type="source" position={Position.Right} style={{ top: '35%', background: '#10b981' }} />
+      <Handle id="false" type="source" position={Position.Right} style={{ top: '70%', background: '#ef4444' }} />
+    </Shell>
+  );
+}
+
 export const nodeTypes = {
   trigger: TriggerNode,
   http: HttpNode,
   condition: ConditionNode,
   transform: TransformNode,
   delay: DelayNode,
+  watch: WatchNode,
 };

@@ -3,7 +3,8 @@ export type NodeType =
   | 'http'
   | 'condition'
   | 'transform'
-  | 'delay';
+  | 'delay'
+  | 'watch';
 
 export interface RetryPolicy {
   maxAttempts: number; // total attempts including the first (1 = no retry)

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { TEMPLATES } from '../templates';
 
 interface WF { id: string; name: string; description: string; active_version: number; updated_at: string; run_count: string; }
 
@@ -39,6 +40,15 @@ export default function Workflows() {
     } finally { setBusy(false); }
   };
 
+  const fromTemplate = async (key: string) => {
+    const t = TEMPLATES.find((x) => x.key === key)!;
+    setBusy(true);
+    try {
+      const { workflow } = await api.post('/workflows', { name: t.name, description: t.hint, graph: t.graph });
+      nav(`/editor/${workflow.id}`);
+    } finally { setBusy(false); }
+  };
+
   const remove = async (id: string) => {
     if (!confirm('Delete this workflow and its runs?')) return;
     await api.del(`/workflows/${id}`);
@@ -52,6 +62,18 @@ export default function Workflows() {
         <div className="ml-auto flex gap-2">
           <button className="btn" disabled={busy} onClick={() => create(true)}>+ Sample workflow</button>
           <button className="btn btn-primary" disabled={busy} onClick={() => create(false)}>+ New workflow</button>
+        </div>
+      </div>
+      <div className="mb-6">
+        <div className="text-sm font-semibold text-slate-300 mb-2">Start from a template</div>
+        <div className="grid md:grid-cols-3 gap-3">
+          {TEMPLATES.map((t) => (
+            <button key={t.key} disabled={busy} data-testid={`tpl-${t.key}`} onClick={() => fromTemplate(t.key)}
+              className="card p-3 text-left hover:border-accent transition">
+              <div className="font-semibold">{t.emoji} {t.name}</div>
+              <div className="text-xs text-slate-400 mt-1">{t.blurb}</div>
+            </button>
+          ))}
         </div>
       </div>
       {wfs.length === 0 ? (

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { WorkflowNode } from '../types';
 import { ExecContext, resolveTemplates } from '../context';
 import { evaluateCondition } from '../expr';
@@ -10,6 +11,9 @@ export interface DecryptedCredential {
 
 export interface NodeServices {
   getCredential: (id: string) => Promise<DecryptedCredential | null>;
+  updateCredential: (id: string, data: Record<string, string>) => Promise<void>;
+  /** Store the new value, return the previous one (null on the first check). Atomic. */
+  swapWatchValue: (nodeId: string, value: string) => Promise<string | null>;
   log: (level: string, message: string, data?: any) => void;
   signal: AbortSignal;
 }
@@ -19,8 +23,45 @@ export interface NodeResult {
   branch?: 'true' | 'false';
 }
 
+/**
+ * OAuth2 refresh-token flow: exchange the long-lived refresh token for a short-lived access token
+ * (once per run, cached on the decrypted credential object). If the provider rotates the refresh
+ * token (X/Twitter does), the new one is stored so the next run keeps working.
+ */
+async function oauthAccessToken(credId: string, cred: DecryptedCredential, svc: NodeServices): Promise<string> {
+  const cached = (cred as any)._at as { token: string; exp: number } | undefined;
+  if (cached && cached.exp > Date.now() + 30_000) return cached.token;
+  const d = cred.data;
+  for (const k of ['token_url', 'client_id', 'refresh_token']) {
+    if (!d[k]) throw new Error(`OAuth credential is missing "${k}"`);
+  }
+  const form = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: d.refresh_token });
+  const headers: Record<string, string> = { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' };
+  if (d.client_auth === 'basic') {
+    headers.authorization = 'Basic ' + Buffer.from(`${d.client_id}:${d.client_secret || ''}`).toString('base64');
+  } else {
+    form.set('client_id', d.client_id);
+    if (d.client_secret) form.set('client_secret', d.client_secret);
+  }
+  if (d.scope) form.set('scope', d.scope);
+  const res = await safeFetch({ url: d.token_url, method: 'POST', headers, body: form.toString(), timeoutMs: 15_000 });
+  const b = res.body && typeof res.body === 'object' ? res.body : {};
+  if (res.status >= 400 || !b.access_token) {
+    // Provider error text only; never include secrets.
+    throw new Error(`OAuth token refresh failed (HTTP ${res.status}${b.error ? `: ${b.error}` : ''})`);
+  }
+  if (b.refresh_token && b.refresh_token !== d.refresh_token) {
+    d.refresh_token = String(b.refresh_token);
+    await svc.updateCredential(credId, d);
+    svc.log('debug', 'Provider rotated the refresh token; stored the new one');
+  }
+  const exp = Date.now() + (Number(b.expires_in) > 0 ? Number(b.expires_in) * 1000 : 3_000_000);
+  (cred as any)._at = { token: String(b.access_token), exp };
+  return String(b.access_token);
+}
+
 /** Apply a credential to an outgoing request's headers (secrets injected here only). */
-function applyCredential(cred: DecryptedCredential, headers: Record<string, string>) {
+async function applyCredential(credId: string, cred: DecryptedCredential, headers: Record<string, string>, svc: NodeServices) {
   switch (cred.type) {
     case 'bearer':
       headers['authorization'] = `Bearer ${cred.data.token}`;
@@ -34,6 +75,9 @@ function applyCredential(cred: DecryptedCredential, headers: Record<string, stri
       break;
     case 'header':
       headers[(cred.data.name || '').toLowerCase()] = cred.data.value;
+      break;
+    case 'oauth2':
+      headers['authorization'] = `Bearer ${await oauthAccessToken(credId, cred, svc)}`;
       break;
   }
 }
@@ -55,7 +99,7 @@ async function runHttp(node: WorkflowNode, ctx: ExecContext, svc: NodeServices):
   if (node.config.credentialId) {
     const cred = await svc.getCredential(node.config.credentialId);
     if (!cred) throw new Error('Referenced credential not found');
-    applyCredential(cred, headers);
+    await applyCredential(node.config.credentialId, cred, headers, svc);
     svc.log('debug', `Applied credential (${cred.type})`);
   }
   let body = cfg.body;
@@ -79,6 +123,23 @@ async function runCondition(node: WorkflowNode, ctx: ExecContext, svc: NodeServi
   const result = evaluateCondition(node.config, ctx);
   svc.log('info', `Condition → ${result}`);
   return { output: { result }, branch: result ? 'true' : 'false' };
+}
+
+async function runWatch(node: WorkflowNode, ctx: ExecContext, svc: NodeServices): Promise<NodeResult> {
+  const raw = resolveTemplates(node.config.value, ctx);
+  if (raw === undefined || raw === null || raw === '') throw new Error('Watch value is empty, nothing to compare');
+  const current = typeof raw === 'string' ? raw : JSON.stringify(raw);
+  // The memory is keyed by node id + a hash of the "value to watch" template, so pointing the node at
+  // something else (another channel, another field) starts a fresh baseline instead of a false "changed".
+  const key = `${node.id}:${crypto.createHash('sha1').update(String(node.config.value)).digest('hex').slice(0, 8)}`;
+  const previous = await svc.swapWatchValue(key, current);
+  const first = previous === null;
+  const changed = first ? node.config.fireOnFirstRun === true : previous !== current;
+  const short = (v: string) => (v.length > 100 ? v.slice(0, 100) + '…' : v);
+  svc.log('info', first
+    ? `First check: saved baseline "${short(current)}"${changed ? ' (firing because "run on first check" is on)' : ' (not firing)'}`
+    : changed ? `Changed: "${short(previous!)}" → "${short(current)}"` : `No change ("${short(current)}")`);
+  return { output: { changed, first, previous, current: raw }, branch: changed ? 'true' : 'false' };
 }
 
 async function runTransform(node: WorkflowNode, ctx: ExecContext): Promise<NodeResult> {
@@ -113,6 +174,7 @@ export async function executeNode(node: WorkflowNode, ctx: ExecContext, svc: Nod
     case 'condition': return runCondition(node, ctx, svc);
     case 'transform': return runTransform(node, ctx);
     case 'delay': return runDelay(node, ctx, svc);
+    case 'watch': return runWatch(node, ctx, svc);
     default: throw new Error(`Unknown node type: ${(node as any).type}`);
   }
 }

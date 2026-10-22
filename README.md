@@ -87,6 +87,24 @@ call it.
 
 ---
 
+## 🔌 Triggers & connecting real services
+
+A workflow can start in four ways, and talk to **any** service that has an HTTP API (Twitter/X, YouTube, Google Calendar/Meet, Slack, Discord, Stripe, your own code…).
+
+| Start it with | How |
+|---|---|
+| **Manual** | ▶ Run (optionally with `{ } Input` JSON) |
+| **Repeating schedule** | ⏰ Schedule → Repeat. Cron + **time zone** (e.g. `0 9 * * *` in `Asia/Kolkata`) |
+| **One time, at an exact moment** | ⏰ Schedule → Run once (date + time). Fires once, even across restarts |
+| **Webhook** | Click the Start node → copy the secret URL. Any app can `POST` JSON to `/hooks/<token>`; fields become `{{input.field}}` |
+| **"When something changes"** | Add a **Watch for change** node after an HTTP call (e.g. latest video id) + a repeating schedule. The green branch runs only when the value differs from last time |
+
+**Logging in to Google / YouTube / X** — Credentials → type `oauth2`: token URL, client id/secret and a *refresh token*. FlowForge swaps it for a fresh access token on every run (and stores rotated refresh tokens), so it never expires on you. Plain API keys/bearer tokens still work.
+
+`{{now.iso}}`, `{{now.in30min}}`, `{{now.in1h}}`, `{{now.date}}` give the run's start time (handy for "meeting in 30 minutes").
+
+Three ready-made templates are on the Workflows page: *Create a Google Meet at a set time*, *New video → post it*, *Webhook → alert*. They run offline against built-in demo endpoints; swap the URL for the real API and pick your credential to go live.
+
 ## 🧪 Tests
 
 With the API running (`cd backend && npm run dev`):

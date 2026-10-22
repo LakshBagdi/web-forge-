@@ -13,10 +13,14 @@ scheduleRouter.get('/workflow/:workflowId', wrap(async (req: AuthedRequest, res)
 }));
 
 scheduleRouter.post('/workflow/:workflowId', wrap(async (req: AuthedRequest, res) => {
-  const body = z.object({ cron: z.string().min(1) }).parse(req.body);
+  const body = z.object({
+    cron: z.string().min(1).optional(),
+    runAt: z.string().min(1).optional(),
+    tz: z.string().min(1).optional(),
+  }).parse(req.body);
   const wf = await getWorkflow(req.userId!, req.params.workflowId);
   if (!wf) throw new HttpError(404, 'Workflow not found');
-  const schedule = await createSchedule(req.userId!, req.params.workflowId, body.cron);
+  const schedule = await createSchedule(req.userId!, req.params.workflowId, body);
   res.json({ schedule });
 }));
 

@@ -12,6 +12,7 @@ import { runRouter } from './routes/runs';
 import { credentialRouter } from './routes/credentials';
 import { scheduleRouter } from './routes/schedules';
 import { mockRouter } from './routes/mock';
+import { hooksRouter } from './routes/hooks';
 import { restoreSchedules } from './services/schedules';
 
 async function main() {
@@ -29,6 +30,8 @@ async function main() {
     }),
   );
   app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: false, limit: '1mb' })); // form posts (webhooks, OAuth mock)
+  app.use(express.text({ type: 'text/*', limit: '1mb' }));
 
   app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
@@ -39,6 +42,7 @@ async function main() {
   app.use('/api/runs', runRouter);
   app.use('/api/credentials', credentialRouter);
   app.use('/api/schedules', scheduleRouter);
+  app.use('/hooks', hooksRouter); // public, token-authenticated webhook triggers
   app.use('/mock', mockRouter); // demo-only target API
 
   app.use(notFound);

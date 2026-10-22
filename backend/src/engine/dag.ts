@@ -148,6 +148,15 @@ export function validateWorkflow(graph: WorkflowGraph): ValidationIssue[] {
         issues.push({ level: 'warning', nodeId: n.id, message: 'Condition has no true/false branch connected' });
       }
     }
+    if (n.type === 'watch') {
+      if (n.config?.value === undefined || String(n.config.value).trim() === '') {
+        issues.push({ level: 'error', nodeId: n.id, message: 'Watch node needs a value to watch, e.g. {{steps.http1.output.body.id}}' });
+      }
+      const branches = outgoing(graph, n.id).map((e) => e.sourceHandle);
+      if (!branches.includes('true') && !branches.includes('false')) {
+        issues.push({ level: 'warning', nodeId: n.id, message: 'Watch has no changed (green) / unchanged (red) branch connected' });
+      }
+    }
     if (n.type === 'transform') {
       if (!n.config?.mapping && !n.config?.expression) {
         issues.push({ level: 'warning', nodeId: n.id, message: 'Transform node has no mapping defined' });

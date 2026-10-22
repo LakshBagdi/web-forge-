@@ -1,4 +1,4 @@
-export type NodeType = 'trigger' | 'http' | 'condition' | 'transform' | 'delay';
+export type NodeType = 'trigger' | 'http' | 'condition' | 'transform' | 'delay' | 'watch';
 
 export interface NodeDef {
   type: NodeType;
@@ -34,6 +34,11 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
     type: 'delay', label: 'Delay', color: '#64748b', icon: '⏱',
     description: 'Wait before continuing.',
     defaultConfig: { ms: 1000 },
+  },
+  watch: {
+    type: 'watch', label: 'Watch for change', color: '#ec4899', icon: '👁',
+    description: 'Remembers a value between runs. Goes true only when it changed (e.g. a new video or post).',
+    defaultConfig: { value: '', fireOnFirstRun: false },
   },
 };
 

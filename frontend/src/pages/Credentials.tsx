@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 
 interface Cred { id: string; name: string; type: string; created_at: string; }
-const TYPES = ['bearer', 'basic', 'api_key', 'header'] as const;
+const TYPES = ['bearer', 'basic', 'api_key', 'header', 'oauth2'] as const;
 
 export default function Credentials() {
   const [creds, setCreds] = useState<Cred[]>([]);
@@ -16,6 +16,12 @@ export default function Credentials() {
 
   const fieldSpec: Record<string, string[]> = {
     bearer: ['token'], basic: ['username', 'password'], api_key: ['header', 'key'], header: ['name', 'value'],
+    oauth2: ['token_url', 'client_id', 'client_secret', 'refresh_token', 'scope'],
+  };
+  const SECRET = ['token', 'password', 'key', 'value', 'client_secret', 'refresh_token'];
+  const PRESETS: Record<string, Record<string, string>> = {
+    google: { token_url: 'https://oauth2.googleapis.com/token', scope: '' },
+    x: { token_url: 'https://api.twitter.com/2/oauth2/token', scope: '' },
   };
   const changeType = (t: (typeof TYPES)[number]) => {
     setType(t);
@@ -46,10 +52,16 @@ export default function Credentials() {
             </select>
           </div>
         </div>
+        {type === 'oauth2' && (
+          <div className="text-xs text-slate-400 space-y-1">
+            <div>Keeps Google / YouTube / X (Twitter) / Microsoft logins working: FlowForge swaps your long-lived <b>refresh token</b> for a fresh access token on every run.</div>
+            <div className="flex gap-1">Fill token URL for: <button className="text-accent" onClick={() => setFields({ ...fields, ...PRESETS.google })}>Google</button> · <button className="text-accent" onClick={() => setFields({ ...fields, ...PRESETS.x })}>X</button></div>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           {fieldSpec[type].map((f) => (
             <div key={f}><label className="label">{f}</label>
-              <input className="input" value={fields[f] ?? ''} onChange={(e) => setFields({ ...fields, [f]: e.target.value })} />
+              <input className="input" type={SECRET.includes(f) ? 'password' : 'text'} autoComplete="off" value={fields[f] ?? ''} onChange={(e) => setFields({ ...fields, [f]: e.target.value })} />
             </div>
           ))}
         </div>

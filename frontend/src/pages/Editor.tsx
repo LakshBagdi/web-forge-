@@ -256,7 +256,7 @@ function EditorInner() {
 
         {/* inspector */}
         <div className="w-80 border-l border-edge bg-panel flex flex-col">
-          <Inspector node={selNode as any} onChange={patchSelected} onDelete={deleteSelected} upstream={upstream} />
+          <Inspector node={selNode as any} onChange={patchSelected} onDelete={deleteSelected} upstream={upstream} workflowId={id} />
         </div>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { one, query, pool } from '../db';
 import { WorkflowGraph } from '../engine/types';
 
@@ -107,4 +108,22 @@ export async function getVersionGraph(workflowId: string, version: number): Prom
     [workflowId, version],
   );
   return row?.graph ?? null;
+}
+
+// ---- Webhook trigger ----
+export async function getOrCreateWebhookToken(userId: string, id: string): Promise<string | null> {
+  const wf = await one<{ webhook_token: string | null }>('SELECT webhook_token FROM workflows WHERE id=$1 AND user_id=$2', [id, userId]);
+  if (!wf) return null;
+  return wf.webhook_token ?? rotateWebhookToken(userId, id);
+}
+
+export async function rotateWebhookToken(userId: string, id: string): Promise<string | null> {
+  const token = crypto.randomBytes(24).toString('base64url'); // 192 bits: unguessable
+  const r = await one<{ webhook_token: string }>(
+    'UPDATE workflows SET webhook_token=$3 WHERE id=$1 AND user_id=$2 RETURNING webhook_token', [id, userId, token]);
+  return r?.webhook_token ?? null;
+}
+
+export async function findByWebhookToken(token: string) {
+  return one<{ id: string; user_id: string; graph: any }>('SELECT id, user_id, graph FROM workflows WHERE webhook_token=$1', [token]);
 }

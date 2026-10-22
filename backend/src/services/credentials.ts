@@ -32,12 +32,18 @@ export async function deleteCredential(userId: string, id: string) {
 }
 
 /** For the engine only. Decrypts the stored secret at execution time. */
-export async function getCredentialDecrypted(id: string): Promise<DecryptedCredential | null> {
-  const row = await one<{ type: string; enc: EncBlob }>('SELECT type, enc FROM credentials WHERE id=$1', [id]);
+export async function getCredentialDecrypted(id: string, userId: string): Promise<DecryptedCredential | null> {
+  // Scoped to the workflow owner: a workflow can never use someone else's credential, even with its id.
+  const row = await one<{ type: string; enc: EncBlob }>('SELECT type, enc FROM credentials WHERE id=$1 AND user_id=$2', [id, userId]);
   if (!row) return null;
   try {
     return { type: row.type, data: JSON.parse(decrypt(row.enc)) };
   } catch {
     return null;
   }
+}
+
+/** Used when an OAuth provider rotates the refresh token: store the new one (encrypted). */
+export async function updateCredentialData(id: string, userId: string, data: Record<string, string>) {
+  await query('UPDATE credentials SET enc=$3 WHERE id=$1 AND user_id=$2', [id, userId, JSON.stringify(encrypt(JSON.stringify(data)))]);
 }

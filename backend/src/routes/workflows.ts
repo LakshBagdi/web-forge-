@@ -5,6 +5,7 @@ import { wrap, HttpError } from '../middleware/error';
 import {
   listWorkflows, getWorkflow, createWorkflow, updateWorkflow,
   duplicateWorkflow, deleteWorkflow, listVersions, getVersionGraph, saveVersion,
+  getOrCreateWebhookToken, rotateWebhookToken,
 } from '../services/workflows';
 import { validateWorkflow } from '../engine/dag';
 
@@ -63,6 +64,18 @@ workflowRouter.post('/:id/duplicate', wrap(async (req: AuthedRequest, res) => {
 workflowRouter.delete('/:id', wrap(async (req: AuthedRequest, res) => {
   await deleteWorkflow(req.userId!, req.params.id);
   res.json({ ok: true });
+}));
+
+workflowRouter.get('/:id/webhook', wrap(async (req: AuthedRequest, res) => {
+  const token = await getOrCreateWebhookToken(req.userId!, req.params.id);
+  if (!token) throw new HttpError(404, 'Workflow not found');
+  res.json({ token, path: `/hooks/${token}` });
+}));
+
+workflowRouter.post('/:id/webhook/rotate', wrap(async (req: AuthedRequest, res) => {
+  const token = await rotateWebhookToken(req.userId!, req.params.id);
+  if (!token) throw new HttpError(404, 'Workflow not found');
+  res.json({ token, path: `/hooks/${token}` });
 }));
 
 workflowRouter.post('/:id/validate', wrap(async (req: AuthedRequest, res) => {

@@ -22,18 +22,30 @@ export async function enqueueRun(runId: string, opts: JobsOptions = {}) {
 }
 
 /** Schedule a repeatable run via cron (used by the schedules feature). */
-export async function scheduleCron(scheduleId: string, cron: string, _factory?: () => Promise<string>) {
+export async function scheduleCron(scheduleId: string, cron: string, tz = 'UTC') {
   // A job scheduler fires a lightweight "cron" job on the pattern; the worker
   // then creates a fresh run per fire.
   await runQueue.upsertJobScheduler(
     `cron:${scheduleId}`,
-    { pattern: cron },
+    { pattern: cron, tz },
     { name: 'cron', data: { scheduleId }, opts: { removeOnComplete: 100, removeOnFail: 100 } },
   );
 }
 
 export async function removeCron(scheduleId: string) {
   await runQueue.removeJobScheduler(`cron:${scheduleId}`);
+  await removeOnce(scheduleId);
+}
+
+/** One-time run at an exact instant: a delayed job (fixed jobId, so re-adding after a restart is a no-op). */
+export async function scheduleOnce(scheduleId: string, runAt: Date) {
+  const delay = Math.max(0, runAt.getTime() - Date.now());
+  await runQueue.add('cron', { scheduleId }, { delay, jobId: `once-${scheduleId}`, removeOnComplete: 100, removeOnFail: 100, attempts: 1 });
+}
+
+export async function removeOnce(scheduleId: string) {
+  const job = await runQueue.getJob(`once-${scheduleId}`);
+  if (job) await job.remove().catch(() => {});
 }
 
 let worker: Worker | null = null;

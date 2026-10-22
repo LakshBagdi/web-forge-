@@ -8,6 +8,7 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:4000',
       '/mock': 'http://localhost:4000',
+      '/hooks': 'http://localhost:4000',
     },
   },
 });

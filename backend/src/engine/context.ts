@@ -11,6 +11,16 @@ export interface ExecContext {
   input: any; // alias for trigger.input
   steps: Record<string, { output: any; status: string }>;
   vars: Record<string, any>;
+  /** Clock values captured when the run started, e.g. {{now.iso}}, {{now.in30min}}. */
+  now: Record<string, string | number>;
+}
+
+export function makeNow(at = new Date()): Record<string, string | number> {
+  const plus = (min: number) => new Date(at.getTime() + min * 60_000).toISOString();
+  return {
+    iso: at.toISOString(), date: at.toISOString().slice(0, 10), epochMs: at.getTime(),
+    in5min: plus(5), in15min: plus(15), in30min: plus(30), in1h: plus(60), in2h: plus(120), in1day: plus(1440),
+  };
 }
 
 export function getPath(obj: any, path: string): any {
