@@ -333,6 +333,13 @@ ok('schedule: one-time never fires twice',(await call('/runs?workflowId='+w.work
   ok('endless 429 -> fails after the automatic tries, with a plain explanation',d2.status==='failed'&&lg2.some(l=>/limits how often/.test(l.message)),JSON.stringify(lg2.map(l=>l.message)).slice(-300));
 }
 
+// Empty message (e.g. only an unknown {{name}}) -> plain explanation instead of the service's cryptic 400
+{
+  const t=await reg(); const w=(await mk(t,'empty-msg',[T,N('m','http','Post',{method:'POST',url:U+'/mock/notify',bodyMode:'message',messageFormat:'discord',message:'{{glory}}'})],[E('e','t','m')])).workflow;
+  const r=(await call('/runs/workflow/'+w.id,t,'POST',{input:{}})).run; const d=await waitRun(t,r.id);
+  ok('empty/unknown-variable message -> clear "message is empty" error',d.status==='failed'&&/message is empty/.test(d.error||JSON.stringify(d)),JSON.stringify(d.error));
+}
+
 // SSRF variants
 for (const [name,url] of [['metadata','http://169.254.169.254/latest/'],['decimal ip','http://2130706433:4000/api/health'.replace('2130706433','2852039166')],['ipv6 loopback','http://[::1]:4000/api/health'],['file scheme','file:///etc/passwd']]) {
   w=await mk(A,'ssrf-'+name,[T,N('h','http','H',{method:'GET',url})],[E('e1','t','h')]);

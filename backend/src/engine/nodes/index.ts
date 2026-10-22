@@ -138,6 +138,9 @@ async function runHttp(node: WorkflowNode, ctx: ExecContext, svc: NodeServices):
   let body = cfg.body;
   if (cfg.bodyMode === 'message') {
     const text = String(cfg.message ?? '');
+    if (!text.trim() && ['discord', 'slack', 'x'].includes(String(cfg.messageFormat))) {
+      throw new Error('The message is empty, so Discord/Slack/X would refuse it. Type a message on this step. (If you used a {{name}} in it, that data does not exist — remove the {{ }} or check the spelling.)');
+    }
     body = buildMessageBody(String(cfg.messageFormat || 'other'), text);
     if (cfg.messageFormat === 'x' && text.length > 280) svc.log('warn', `This post is ${text.length} characters; X allows 280`);
   } else if (cfg.bodyMode === 'fields') {
