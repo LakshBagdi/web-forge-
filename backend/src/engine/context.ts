@@ -25,7 +25,8 @@ export function makeNow(at = new Date()): Record<string, string | number> {
 
 export function getPath(obj: any, path: string): any {
   if (!path) return obj;
-  const parts = path.split('.').map((p) => p.trim()).filter(Boolean);
+  // accept both items.0.name and items[0].name
+  const parts = path.replace(/\[(\w+)\]/g, '.$1').split('.').map((p) => p.trim()).filter(Boolean);
   let cur = obj;
   for (const p of parts) {
     if (cur == null) return undefined;

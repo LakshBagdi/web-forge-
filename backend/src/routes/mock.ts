@@ -126,3 +126,22 @@ mockRouter.get('/youtube/playlistItems', (req, res) => {
   const n = channels.get(ch) ?? 1;
   res.json({ items: [{ snippet: { title: `Video #${n} from ${ch}`, resourceId: { kind: 'youtube#video', videoId: `vid${n}` } } }] });
 });
+
+// ---- Odd-but-common real-world API behaviours, so we can test them offline ----
+// redirect (like http→https or short links): /mock/redirect?to=/mock/users/1&code=302
+mockRouter.get('/redirect', (req, res) => res.redirect(Number(req.query.code) || 302, String(req.query.to || '/mock/users/1')));
+// JSON sent as text/plain (e.g. raw.githubusercontent.com)
+mockRouter.get('/plain-json', (_req, res) => { res.type('text/plain').send(JSON.stringify({ hello: 'world', n: 3 })); });
+// top-level array (like jsonplaceholder /todos)
+mockRouter.get('/array', (_req, res) => res.json([{ id: 1, title: 'first', done: false }, { id: 2, title: 'second', done: true }]));
+// gzip-compressed JSON
+mockRouter.get('/gzip', (_req, res) => {
+  const zlib = require('zlib');
+  res.set({ 'content-type': 'application/json', 'content-encoding': 'gzip' }).send(zlib.gzipSync(JSON.stringify({ zipped: true, items: [{ name: 'a' }, { name: 'b' }] })));
+});
+// not JSON at all
+mockRouter.get('/html', (_req, res) => res.type('html').send('<html><body>Hello</body></html>'));
+mockRouter.get('/empty', (_req, res) => res.status(204).end());
+mockRouter.get('/status/:code', (req, res) => res.status(Number(req.params.code) || 500).json({ status: Number(req.params.code) }));
+// echoes exactly what it received (content-type + raw body) — for form/JSON body checks
+mockRouter.all('/echo', (req, res) => res.json({ method: req.method, query: req.query, contentType: req.headers['content-type'] || null, body: req.body ?? null, auth: req.headers.authorization || null, custom: req.headers['x-custom'] || null }));

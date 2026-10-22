@@ -115,9 +115,18 @@ export function buildMessageBody(format: string, text: string): any {
   }
 }
 
+/** Forgive a missing scheme / stray spaces: "api.example.com/x" -> "https://api.example.com/x". */
+export function normalizeUrl(raw: any): string {
+  let u = String(raw ?? '').trim();
+  if (!u) throw new Error('This step has no web address (URL). Open the step and paste one.');
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(u)) u = (/^(localhost|127\.|\[::1\])/i.test(u) ? 'http://' : 'https://') + u.replace(/^\/+/, '');
+  try { new URL(u); } catch { throw new Error(`"${u}" is not a valid web address. It should look like https://api.example.com/data`); }
+  return u;
+}
+
 async function runHttp(node: WorkflowNode, ctx: ExecContext, svc: NodeServices): Promise<NodeResult> {
   const cfg = resolveTemplates(node.config, ctx);
-  let url: string = cfg.url;
+  let url: string = normalizeUrl(cfg.url);
   // Merge query params if provided as an object.
   if (cfg.query && typeof cfg.query === 'object') {
     const u = new URL(url);

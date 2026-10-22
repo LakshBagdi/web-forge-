@@ -1,5 +1,6 @@
 import http from 'node:http';
 import https from 'node:https';
+import zlib from 'node:zlib';
 import { URL } from 'node:url';
 import { resolveSafeTarget } from './ssrfGuard';
 import { config } from '../config';
@@ -28,7 +29,7 @@ export interface SafeResponse {
  *  - keep Host header + TLS SNI = original hostname so vhosts/certs still work
  *  - enforce timeout and a max response size
  */
-export async function safeFetch(req: SafeRequest): Promise<SafeResponse> {
+export async function safeFetch(req: SafeRequest, redirectsLeft = 5): Promise<SafeResponse> {
   const target = await resolveSafeTarget(req.url);
   const original = new URL(req.url);
   const isHttps = target.protocol === 'https:';
@@ -41,12 +42,15 @@ export async function safeFetch(req: SafeRequest): Promise<SafeResponse> {
   const lowerKeys = new Set(Object.keys(headers).map((k) => k.toLowerCase()));
   headers['host'] = original.host;
   if (!lowerKeys.has('user-agent')) headers['user-agent'] = 'FlowForge/1.0';
-  if (!lowerKeys.has('accept')) headers['accept'] = '*/*';
+  if (!lowerKeys.has('accept')) headers['accept'] = 'application/json, text/plain, */*';
+  if (!lowerKeys.has('accept-encoding')) headers['accept-encoding'] = 'gzip, deflate, br';
 
   let bodyBuf: Buffer | undefined;
   if (req.body !== undefined && req.body !== null && method !== 'GET' && method !== 'HEAD') {
     if (typeof req.body === 'string') bodyBuf = Buffer.from(req.body);
-    else { bodyBuf = Buffer.from(JSON.stringify(req.body)); if (!lowerKeys.has('content-type')) headers['content-type'] = 'application/json'; }
+    else if (/x-www-form-urlencoded/i.test(String(headers['content-type'] || headers['Content-Type'] || '')) && typeof req.body === 'object') {
+      bodyBuf = Buffer.from(new URLSearchParams(Object.entries(req.body).map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : String(v)])).toString());
+    } else { bodyBuf = Buffer.from(JSON.stringify(req.body)); if (!lowerKeys.has('content-type')) headers['content-type'] = 'application/json'; }
     headers['content-length'] = String(bodyBuf.length);
   }
 
@@ -78,12 +82,34 @@ export async function safeFetch(req: SafeRequest): Promise<SafeResponse> {
       function finish() {
         if (done) return;
         done = true;
-        const raw = Buffer.concat(chunks).toString('utf8');
+        let buf = Buffer.concat(chunks);
+        try {
+          const enc = String(res.headers['content-encoding'] || '').toLowerCase();
+          if (enc === 'gzip' || enc === 'x-gzip') buf = zlib.gunzipSync(buf);
+          else if (enc === 'deflate') buf = zlib.inflateSync(buf);
+          else if (enc === 'br') buf = zlib.brotliDecompressSync(buf);
+        } catch { /* cut-off or bad compression: use what we have */ }
+        const raw = buf.toString('utf8');
         const ct = String(res.headers['content-type'] || '');
         let body: any = raw;
-        if (ct.includes('application/json')) { try { body = JSON.parse(raw); } catch { /* keep raw */ } }
+        // Parse JSON by content-type (application/json, +json, text/json) or when plain text clearly is JSON (raw.githubusercontent etc.)
+        if (/json/i.test(ct) || ((ct === '' || /text\/plain/i.test(ct)) && /^\s*[\[{]/.test(raw))) { try { body = JSON.parse(raw); } catch { /* keep raw */ } }
         const respHeaders: Record<string, string> = {};
         for (const [k, v] of Object.entries(res.headers)) respHeaders[k] = Array.isArray(v) ? v.join(', ') : String(v ?? '');
+        const loc = res.headers['location'];
+        const code = res.statusCode || 0;
+        if (loc && [301, 302, 303, 307, 308].includes(code) && redirectsLeft > 0) {
+          try {
+            const next = new URL(String(loc), original).toString();
+            const sameHost = new URL(next).host === original.host;
+            const toGet = code === 303 || ((code === 301 || code === 302) && method === 'POST');
+            const nh = { ...(req.headers || {}) };
+            for (const k of Object.keys(nh)) if (/^(host|content-length)$/i.test(k) || (!sameHost && /^(authorization|cookie)$/i.test(k)) || (toGet && /^content-type$/i.test(k))) delete nh[k];
+            safeFetch({ url: next, method: toGet ? 'GET' : method, headers: nh, body: toGet ? undefined : req.body, timeoutMs }, redirectsLeft - 1)
+              .then((r) => resolve({ ...r, durationMs: Date.now() - started }), reject);
+            return;
+          } catch (e) { reject(e); return; }
+        }
         resolve({
           status: res.statusCode || 0,
           statusText: res.statusMessage || '',
