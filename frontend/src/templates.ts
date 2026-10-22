@@ -37,7 +37,7 @@ function youtubeTemplate(target: 'discord' | 'x'): Template {
     key: target === 'discord' ? 'yt-discord' : 'yt-x', group: 'real', emoji: '🎬',
     name: target === 'discord' ? 'New YouTube video → Discord message' : 'New YouTube video → post on X',
     blurb: 'Checks a channel for a new upload and posts it. Open ⚙ Settings, paste your values, Save, Run. Then add a repeating schedule (every 5–15 min).',
-    needs: target === 'discord' ? `${YT_NEEDS}; ${DISCORD_NEEDS}` : `${YT_NEEDS}; an oauth2 credential for X (Credentials page) chosen on the post node`,
+    needs: target === 'discord' ? `${YT_NEEDS}; ${DISCORD_NEEDS}` : `${YT_NEEDS}; an oauth2 credential for X (Credentials page) chosen on the post node — X’s API is paid (needs credit)`,
     hint: 'Fill the PASTE_ values in the ⚙ Settings node. "Run on first check" is on so your first Run posts the latest video once; untick it on the "New video?" node afterwards if you only want future videos. Then ⏰ Schedule → Repeat.',
     graph: {
       nodes: [
@@ -83,7 +83,7 @@ export const TEMPLATES: Template[] = [
   {
     key: 'tweet', group: 'real', emoji: '🐦', name: 'Post a tweet on X',
     blurb: 'The simplest X automation: one post. Edit the text in ⚙ Settings, pick your X credential, Run. Add a schedule or webhook to automate it.',
-    needs: 'an oauth2 credential for X (Credentials page → X link; get the refresh token with scripts/x-get-refresh-token.mjs)',
+    needs: 'an oauth2 credential for X (Credentials page → Connect with X) — X’s API is paid (needs credit)',
     hint: 'Choose your X oauth2 credential in the Authentication box of the Post node. X rejects an identical tweet twice, so the default text ends with the run time.',
     graph: {
       nodes: [

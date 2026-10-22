@@ -111,6 +111,7 @@ export default function Credentials() {
               <button type="button" className="btn btn-primary" data-testid="connect-google" onClick={() => connect('google')}>Connect with Google</button>
               <button type="button" className="btn btn-primary" data-testid="connect-x" onClick={() => connect('x')}>Connect with X</button>
             </div>
+            <div className="text-[11px] text-amber-200/90">💳 Posting on X uses X’s paid API — add credit in your X developer account. Google, Discord and Slack are free.</div>
             <details data-testid="oauth-advanced" className="rounded border border-edge/70 p-2">
               <summary className="text-xs text-slate-400 cursor-pointer select-none">Advanced: paste a refresh token yourself instead</summary>
               <div className="mt-2 space-y-2">

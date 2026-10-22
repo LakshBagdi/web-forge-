@@ -8,7 +8,7 @@ export const PRESETS: Preset[] = [
     patch: { ...CLEAR, method: 'POST', url: '', bodyMode: 'message', messageFormat: 'discord', message: 'Hello from FlowForge! 👋' } },
   { id: 'slack', label: '💬 Send a Slack message', help: 'Paste your Slack webhook link, then type your message.',
     patch: { ...CLEAR, method: 'POST', url: '', bodyMode: 'message', messageFormat: 'slack', message: 'Hello from FlowForge! 👋' } },
-  { id: 'x', label: '🐦 Post on X (Twitter)', help: 'Pick your X login, then type the post (max 280 characters).',
+  { id: 'x', label: '🐦 Post on X (Twitter)', help: 'Pick your X login, then type the post (max 280 characters). Uses X’s paid API — posting needs credit on your X developer account.',
     patch: { ...CLEAR, method: 'POST', url: 'https://api.twitter.com/2/tweets', bodyMode: 'message', messageFormat: 'x', message: 'Hello from FlowForge! {{now.iso}}' } },
   { id: 'youtube', label: '🎬 Get a channel’s latest YouTube video', help: 'Replace playlistId with the channel’s uploads id (channel id with UC changed to UU) and key with your YouTube API key.',
     patch: { ...CLEAR, method: 'GET', url: 'https://www.googleapis.com/youtube/v3/playlistItems', query: { part: 'snippet', maxResults: '1', playlistId: 'PASTE_UPLOADS_PLAYLIST_ID', key: 'PASTE_YOUTUBE_API_KEY' } } },

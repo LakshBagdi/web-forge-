@@ -162,6 +162,7 @@ export default function Inspector({ node, onChange, onDelete, upstream = [], wor
                 <option value="">Pick your X login…</option>
                 {creds.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
               </select>
+              <div className="mt-1 rounded border border-amber-500/40 bg-amber-500/10 p-1.5 text-[11px] text-amber-200" data-testid="x-paid-note">💳 Uses X’s paid API — X charges credits for posting, so add credit in your X developer account first.</div>
               <div className="text-[11px] text-slate-500 mt-1">Not in the list? Open the <b>Credentials</b> page → “Connect X”, then come back.</div>
             </div>
           )}
