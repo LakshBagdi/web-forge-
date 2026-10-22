@@ -47,6 +47,16 @@ function RefChip({ text }: { text: string }) {
   );
 }
 
+function MoreOptions({ simple, children }: { simple: boolean; children: React.ReactNode }) {
+  if (!simple) return <>{children}</>;
+  return (
+    <details className="rounded-md border border-edge p-2" data-testid="more-options">
+      <summary className="cursor-pointer text-xs text-slate-400 select-none">More options (usually not needed)</summary>
+      <div className="space-y-3 mt-3">{children}</div>
+    </details>
+  );
+}
+
 export default function Inspector({ node, onChange, onDelete, upstream = [], workflowId }: Props) {
   const [creds, setCreds] = useState<{ id: string; name: string; type: string }[]>([]);
   useEffect(() => { api.get('/credentials').then((d) => setCreds(d.credentials)).catch(() => {}); }, []);
@@ -60,6 +70,10 @@ export default function Inspector({ node, onChange, onDelete, upstream = [], wor
   }
   const def = NODE_DEFS[node.type];
   const cfg = node.config || {};
+  const fmt = cfg.messageFormat;
+  // "simple mode": a message going to X / Discord / Slack only needs a link (or login) and the text — everything else hides under More options
+  const simple = node.type === 'http' && cfg.bodyMode === 'message' && ['discord', 'slack', 'x'].includes(fmt) && (cfg.method || 'GET') === 'POST';
+  const isX = fmt === 'x';
   const set = (patch: any) => onChange({ config: { ...cfg, ...patch } });
 
   return (
@@ -130,6 +144,33 @@ export default function Inspector({ node, onChange, onDelete, upstream = [], wor
               );
             })()}
           </div>
+          {simple && !isX && (
+            <div>
+              <label className="label">{fmt === 'slack' ? 'Slack webhook link' : 'Discord webhook link'}</label>
+              <input className="input font-mono" value={cfg.url || ''} placeholder={fmt === 'slack' ? 'https://hooks.slack.com/services/…' : 'https://discord.com/api/webhooks/…'} data-testid="url" onChange={(e) => set({ url: e.target.value })} />
+              <div className="text-[11px] text-slate-500 mt-1">
+                {fmt === 'slack'
+                  ? 'In Slack: api.slack.com/apps → Create app → Incoming Webhooks → Add New Webhook → Copy.'
+                  : 'In Discord: channel ⚙ → Integrations → Webhooks → New Webhook → Copy Webhook URL.'}
+              </div>
+            </div>
+          )}
+          {simple && isX && (
+            <div>
+              <label className="label">Your X login</label>
+              <select className="input" value={cfg.credentialId || ''} data-testid="x-login" onChange={(e) => set({ credentialId: e.target.value || undefined })}>
+                <option value="">Pick your X login…</option>
+                {creds.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
+              </select>
+              <div className="text-[11px] text-slate-500 mt-1">Not in the list? Open the <b>Credentials</b> page → “Connect X”, then come back.</div>
+            </div>
+          )}
+          {simple && (
+            <div><label className="label">Message</label>
+              <BodyEditor cfg={cfg} set={set} upstream={upstream} simple />
+            </div>
+          )}
+          <MoreOptions key={applied} simple={simple}>
           <div className="flex gap-2">
             <div className="w-28"><label className="label">Method</label>
               <select className="input" value={cfg.method || 'GET'} data-testid="method" onChange={(e) => {
@@ -141,11 +182,11 @@ export default function Inspector({ node, onChange, onDelete, upstream = [], wor
                 {['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'].map((m) => <option key={m}>{m}</option>)}
               </select>
             </div>
-            <div className="flex-1"><label className="label">URL (the web address)</label>
+            {!simple && <div className="flex-1"><label className="label">URL (the web address)</label>
               <input className="input font-mono" value={cfg.url || ''} placeholder="https://api.example.com/x" data-testid="url" onChange={(e) => set({ url: e.target.value })} />
-            </div>
+            </div>}
           </div>
-          <p className="text-[11px] text-slate-400" data-testid="method-help">{METHOD_HELP[cfg.method || 'GET']}</p>
+          {!simple && <p className="text-[11px] text-slate-400" data-testid="method-help">{METHOD_HELP[cfg.method || 'GET']}</p>}
 
           <div><label className="label">Extra info in the address — “Query parameters”</label>
             <KeyValueEditor value={cfg.query || {}} onChange={(query) => set({ query })} keyPlaceholder="name  e.g. maxResults" valuePlaceholder="value  e.g. 5" addLabel="+ Add a parameter" />
@@ -163,14 +204,14 @@ export default function Inspector({ node, onChange, onDelete, upstream = [], wor
               <p>Only add one if an API’s docs say “send header X: Y”. Name = <span className="font-mono">X</span>, Value = <span className="font-mono">Y</span>.</p>
             </Tip></div>
           </div>
-          <div><label className="label">Authentication (saved login / API key)</label>
+          {!(simple && isX) && <div><label className="label">Authentication (saved login / API key)</label>
             <select className="input" value={cfg.credentialId || ''} onChange={(e) => set({ credentialId: e.target.value || undefined })}>
               <option value="">None</option>
               {creds.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
             </select>
             <div className="text-[11px] text-slate-500 mt-1">Add logins in the <b>Credentials</b> page, then pick one here.</div>
-          </div>
-          {['POST', 'PUT', 'PATCH'].includes((cfg.method || 'GET')) && (
+          </div>}
+          {!simple && ['POST', 'PUT', 'PATCH'].includes((cfg.method || 'GET')) && (
             <div><label className="label">What to send</label>
               <BodyEditor cfg={cfg} set={set} upstream={upstream} />
             </div>
@@ -179,6 +220,7 @@ export default function Inspector({ node, onChange, onDelete, upstream = [], wor
             <input type="checkbox" checked={cfg.failOnErrorStatus !== false} onChange={(e) => set({ failOnErrorStatus: e.target.checked })} />
             Stop with an error if the website says it failed
           </label>
+          </MoreOptions>
         </>
       )}
 

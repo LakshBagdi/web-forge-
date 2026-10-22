@@ -4,11 +4,11 @@ export interface Preset { id: string; label: string; help: string; patch: Record
 const CLEAR = { query: {}, body: undefined, bodyType: undefined, bodyMode: undefined, message: undefined, messageFormat: undefined, fields: undefined };
 
 export const PRESETS: Preset[] = [
-  { id: 'discord', label: '💬 Send a Discord message', help: 'Paste your Discord webhook URL as the URL (Channel ⚙ → Integrations → Webhooks → New Webhook → Copy URL), then type your message.',
+  { id: 'discord', label: '💬 Send a Discord message', help: 'Paste your Discord webhook link, then type your message.',
     patch: { ...CLEAR, method: 'POST', url: '', bodyMode: 'message', messageFormat: 'discord', message: 'Hello from FlowForge! 👋' } },
-  { id: 'slack', label: '💬 Send a Slack message', help: 'Paste your Slack Incoming Webhook URL as the URL, then type your message.',
+  { id: 'slack', label: '💬 Send a Slack message', help: 'Paste your Slack webhook link, then type your message.',
     patch: { ...CLEAR, method: 'POST', url: '', bodyMode: 'message', messageFormat: 'slack', message: 'Hello from FlowForge! 👋' } },
-  { id: 'x', label: '🐦 Post on X (Twitter)', help: 'Choose your X credential in “Authentication” below, then type the post (max 280 characters).',
+  { id: 'x', label: '🐦 Post on X (Twitter)', help: 'Pick your X login, then type the post (max 280 characters).',
     patch: { ...CLEAR, method: 'POST', url: 'https://api.twitter.com/2/tweets', bodyMode: 'message', messageFormat: 'x', message: 'Hello from FlowForge! {{now.iso}}' } },
   { id: 'youtube', label: '🎬 Get a channel’s latest YouTube video', help: 'Replace playlistId with the channel’s uploads id (channel id with UC changed to UU) and key with your YouTube API key.',
     patch: { ...CLEAR, method: 'GET', url: 'https://www.googleapis.com/youtube/v3/playlistItems', query: { part: 'snippet', maxResults: '1', playlistId: 'PASTE_UPLOADS_PLAYLIST_ID', key: 'PASTE_YOUTUBE_API_KEY' } } },

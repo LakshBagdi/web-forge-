@@ -25,7 +25,7 @@ export function bodyModeOf(cfg: any): 'message' | 'fields' | 'json' {
   return cfg.bodyMode || (cfg.body !== undefined && cfg.body !== '' ? 'json' : 'message');
 }
 
-export default function BodyEditor({ cfg, set, upstream }: { cfg: any; set: (p: any) => void; upstream: Upstream[] }) {
+export default function BodyEditor({ cfg, set, upstream, simple = false }: { cfg: any; set: (p: any) => void; upstream: Upstream[]; simple?: boolean }) {
   const mode = bodyModeOf(cfg);
   const format = cfg.messageFormat || 'discord';
   const msgRef = useRef<HTMLTextAreaElement>(null);
@@ -79,25 +79,26 @@ export default function BodyEditor({ cfg, set, upstream }: { cfg: any; set: (p: 
 
   return (
     <div className="space-y-2">
-      <div className="flex rounded-md overflow-hidden border border-edge text-xs" role="tablist">
+      {!simple && <div className="flex rounded-md overflow-hidden border border-edge text-xs" role="tablist">
         {([['message', '✉ Message'], ['fields', '☰ Fields'], ['json', '{ } Custom JSON']] as const).map(([m, l]) => (
           <button key={m} role="tab" aria-selected={mode === m} data-testid={`bodymode-${m}`}
             className={`flex-1 py-1.5 ${mode === m ? 'bg-accent text-white' : 'bg-ink text-slate-300 hover:bg-edge'}`}
             onClick={() => set({ bodyMode: m })}>{l}</button>
         ))}
-      </div>
+      </div>}
 
       {mode === 'message' && (
         <>
-          <div><label className="label">Send it to</label>
+          {!simple && <div><label className="label">Send it to</label>
             <select className="input" value={format} onChange={(e) => set({ bodyMode: 'message', messageFormat: e.target.value })}>
               {FORMATS.map((f) => <option key={f.v} value={f.v}>{f.l}</option>)}
             </select>
-          </div>
+          </div>}
           <div><label className="label">Your message — just type it</label>
             <textarea ref={msgRef} className="input h-24" data-testid="message-text" value={cfg.message || ''} spellCheck
               placeholder="e.g. 🎬 New video is out! Check it now."
               onChange={(e) => set({ bodyMode: 'message', messageFormat: format, message: e.target.value })} />
+            {format === 'x' && <div className={`mt-1 text-[11px] ${String(cfg.message || '').length > 280 ? 'text-red-300' : 'text-slate-500'}`} data-testid="x-count">{String(cfg.message || '').length} / 280 characters</div>}
             {tokens.length > 0 && badTokens.length === 0 && (
               <div className="mt-1 text-[11px] text-slate-400" data-testid="message-auto">
                 Filled in automatically when it runs: {[...new Set(tokens)].map((t) => <span key={t} className="inline-block mr-1 mb-0.5 px-1.5 py-0.5 rounded bg-accent/15 text-blue-200" title={`{{${t}}}`}>{tokenName(t)}</span>)}
