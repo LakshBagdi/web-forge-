@@ -87,6 +87,17 @@ call it.
 
 ---
 
+## 🧪 Tests
+
+With the API running (`cd backend && npm run dev`):
+
+```bash
+cd backend
+npm run test:api    # 32 end-to-end API checks: auth, tenant isolation, branching, retries,
+                    # timeouts, cancel, cycles, schedules, versions, credentials, SSRF
+npm run test:ssrf   # 28 IP-classification cases (IPv4, IPv6, IPv4-mapped/NAT64/6to4 tricks)
+```
+
 ## 🎬 Demo script (2 min)
 
 1. Register, click **“+ Sample workflow”** → a graph is pre-built: Trigger → HTTP

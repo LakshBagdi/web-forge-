@@ -9,7 +9,9 @@
     "build": "tsc --noEmit",
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx --test src/**/*.test.ts",
+    "test:api": "node tests/api-smoke.mjs",
+    "test:ssrf": "tsx tests/ssrf.test.ts"
   },
   "engines": {
     "node": ">=20"
