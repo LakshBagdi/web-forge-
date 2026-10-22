@@ -1,31 +1,39 @@
-# VulnSight AI — Automated Website Security Auditor 🛡️
+FlowForge
 
-> An AI-powered security auditing platform that scans authorized targets, classifies vulnerabilities with evidence, and delivers actionable, automated remediation steps.
+Visual API Workflow Automation Platform featuring a drag-and-drop orchestration engine with Directed Acyclic Graph (DAG) execution, conditional branching, and robust failure recovery.
 
-## 📌 Problem Statement
-Developers often struggle to identify and patch security vulnerabilities without specialized cybersecurity expertise. Traditional scanner outputs (OWASP ZAP, Nmap) are verbose and difficult to interpret. VulnSight AI transforms raw scanner telemetry into evidence-backed findings and automated AI remediation workflows.
+Overview
 
-## 🚀 Core Deliverables
-- 🔒 **Authorized Target Scanning:** Automated security assessments for authorized target domains.
-- 📊 **Evidence-Backed Findings:** Severity classification (Critical, High, Medium, Low) with proof logs.
-- 🤖 **AI-Assisted Remediation:** Contextual code fixes and remediation guidance.
-- 📜 **Scan History:** Persistent tracking of previous scans and resolution states.
-- 📄 **Downloadable Reports:** PDF/Executive security summaries.
+FlowForge simplifies the orchestration of multi-step API workflows, data transformations, and conditional operations. Traditional automation scripts often fail silently and are difficult to debug or resume. FlowForge provides a visual builder to construct DAG-based workflows, backed by a persistent execution engine that handles step-level retries, timeouts, and state recovery.
 
-## 🛠️ Tech Stack
-- **Frontend:** React, TypeScript, Tailwind CSS
-- **Backend:** Node.js / Express / Python / FastAPI
-- **Security Tools:** OWASP ZAP, Nmap
-- **Database:** PostgreSQL / MongoDB
-- **AI Engine:** Claude 3.7 / GPT-4o API
+Core Features
 
-## 👥 Squad Roster
-- **Member 1:** Architecture & AI Remediation Engine
-- **Member 2:** Security Tool Parsers & Database Schemas
-- **Member 3:** Frontend Dashboard UI & PDF Exporter
+Visual Workflow Editor: Drag-and-drop interface built with React Flow to define API requests, conditions, data transformations, delays, and triggers.
 
-## ⚡ Getting Started
+DAG Execution Engine: Evaluates dependencies, passes data between steps, and handles conditional branching.
 
-```bash
-npm install
-npm run dev
+Granular API Configuration: Full control over HTTP methods, headers, authentication, request bodies, and dynamic input parameters.
+
+Resilient Execution: Powered by Redis and BullMQ to support job queues, retries, timeouts, and controlled re-execution of failed nodes.
+
+Real-time Telemetry: Live execution status, step-level logs, and error tracing streamed to the client via WebSockets.
+
+Lifecycle Management: Save, edit, duplicate, version, and validate workflows prior to execution to prevent invalid graphs.
+
+Architecture
+
+Frontend: React, TypeScript, Tailwind CSS, React Flow
+
+Backend: Node.js, Express, WebSockets (Socket.io)
+
+Database & Persistence: PostgreSQL (Prisma ORM)
+
+Message Broker / Queue: Redis + BullMQ
+
+Security & Constraints
+
+Network Isolation: Workflows are executed within a restricted network context to prevent Server-Side Request Forgery (SSRF) and block arbitrary access to internal infrastructure.
+
+Credential Management: External API keys and OAuth tokens are encrypted at rest.
+
+Validation: Strict DAG validation prevents circular dependencies and unbound execution loops.
