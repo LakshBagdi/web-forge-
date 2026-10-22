@@ -1,5 +1,5 @@
 import { one, query } from '../db';
-import { scheduleCron, removeCron, scheduleOnce } from '../queue';
+import { scheduleCron, removeCron, scheduleOnce, nextCronRun } from '../queue';
 import { createRun } from './runs';
 import { HttpError } from '../middleware/error';
 
@@ -10,7 +10,13 @@ export function validTimeZone(tz: string) {
 }
 
 export async function listSchedules(userId: string, workflowId: string) {
-  return query(`SELECT ${COLS} FROM schedules WHERE user_id=$1 AND workflow_id=$2 ORDER BY created_at DESC`, [userId, workflowId]);
+  const rows = await query<any>(`SELECT ${COLS} FROM schedules WHERE user_id=$1 AND workflow_id=$2 ORDER BY created_at DESC`, [userId, workflowId]);
+  // Add "next run" so the UI can show exactly when each schedule will fire.
+  for (const r of rows) {
+    r.next_at = r.cron ? (r.enabled ? await nextCronRun(r.id) : null)
+      : (r.enabled && !r.fired_at ? new Date(r.run_at).getTime() : null);
+  }
+  return rows;
 }
 
 /** Repeating (cron + timezone) or one-time (runAt). Exactly one of cron / runAt. */

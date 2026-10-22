@@ -110,6 +110,16 @@ The Workflows page has **ready-made templates**:
 
 API keys and webhook secrets in URLs are masked in run logs. To get an X refresh token run `node scripts/x-get-refresh-token.mjs` (see the file header).
 
+## 🧑‍💻 No JSON needed
+
+- **✉ Message mode** – on any POST/PUT/PATCH step just type your message; pick *Discord / Slack / X / Other* and FlowForge builds the JSON for you (live preview shown). Buttons insert **@everyone**, **@here**, **@channel**, tag a person (`<@USERID>`) or a role (`<@&ROLEID>`), or any data from earlier steps. **☰ Fields** = rows of name/value. **{ } Custom JSON** is still there for power users.
+- **Quick setup** presets fill method + URL + body for Discord, Slack, X, YouTube, Google Meet or any GET/POST.
+- **Method help** – choosing GET/POST/PUT/PATCH/DELETE explains it and shows/hides the body automatically. **Query parameters** and **Headers** have examples and "what is this?" help.
+- **🧪 Test this step** runs just that step (non-GET asks to confirm) and shows what came back.
+- **Delay** takes seconds/minutes (max 2 min per step – use ⏰ *Run once* for longer waits).
+- **▶ Run vs ⏰ Schedule** – Run = now, once. A schedule never runs at creation; the panel shows the *Next run*, and History labels each run *You pressed Run / Scheduled / Webhook*.
+- Side bars scroll, drag to resize (double-click resets) and collapse; sizes are remembered.
+
 ## 🧪 Tests
 
 With the API running (`cd backend && npm run dev`):

@@ -13,10 +13,10 @@ const YT_NEEDS = 'YouTube API key + the channel\'s uploads playlist id (channel 
 function youtubeTemplate(target: 'discord' | 'x'): Template {
   const post = target === 'discord'
     ? H('post', 'Post to Discord', 1100, 80, { method: 'POST', url: '{{steps.settings.output.discordUrl}}',
-        body: { content: '🎬 New video: {{steps.fetch.output.body.items.0.snippet.title}} https://youtu.be/{{steps.fetch.output.body.items.0.snippet.resourceId.videoId}}' } },
+        bodyMode: 'message', messageFormat: 'discord', message: '🎬 New video: {{steps.fetch.output.body.items.0.snippet.title}} https://youtu.be/{{steps.fetch.output.body.items.0.snippet.resourceId.videoId}}' },
         { retry: { maxAttempts: 3, backoffMs: 1500 } })
     : H('post', 'Post to X (pick your X credential)', 1100, 80, { method: 'POST', url: 'https://api.twitter.com/2/tweets',
-        body: { text: '🎬 New video: {{steps.fetch.output.body.items.0.snippet.title}} https://youtu.be/{{steps.fetch.output.body.items.0.snippet.resourceId.videoId}}' } },
+        bodyMode: 'message', messageFormat: 'x', message: '🎬 New video: {{steps.fetch.output.body.items.0.snippet.title}} https://youtu.be/{{steps.fetch.output.body.items.0.snippet.resourceId.videoId}}' },
         { retry: { maxAttempts: 2, backoffMs: 2000 } });
   const settings = target === 'discord'
     ? { playlistId: 'PASTE_UPLOADS_PLAYLIST_ID', youtubeApiKey: 'PASTE_YOUTUBE_API_KEY', discordUrl: 'PASTE_DISCORD_WEBHOOK_URL' }
@@ -62,7 +62,7 @@ export const TEMPLATES: Template[] = [
             conferenceData: { createRequest: { requestId: 'ff-{{now.epochMs}}', conferenceSolutionKey: { type: 'hangoutsMeet' } } } } },
           { retry: { maxAttempts: 2, backoffMs: 1500 } }),
         H('share', 'Post link to Discord', 880, 160, { method: 'POST', url: '{{steps.settings.output.discordUrl}}',
-          body: { content: '📅 {{steps.settings.output.title}} — join: {{steps.meet.output.body.hangoutLink}}' } }),
+          bodyMode: 'message', messageFormat: 'discord', message: '📅 {{steps.settings.output.title}} — join: {{steps.meet.output.body.hangoutLink}}' }),
       ],
       edges: [{ id: 'e1', source: 'trigger', target: 'settings' }, { id: 'e2', source: 'settings', target: 'meet' }, { id: 'e3', source: 'meet', target: 'share' }],
     },
@@ -76,7 +76,7 @@ export const TEMPLATES: Template[] = [
       nodes: [
         trig(),
         T('settings', SETTINGS_LABEL, 300, 160, { tweetText: 'Hello from FlowForge! {{now.iso}}' }),
-        H('tweet', 'Post to X (pick X credential)', 580, 160, { method: 'POST', url: 'https://api.twitter.com/2/tweets', body: { text: '{{steps.settings.output.tweetText}}' } }),
+        H('tweet', 'Post to X (pick X credential)', 580, 160, { method: 'POST', url: 'https://api.twitter.com/2/tweets', bodyMode: 'message', messageFormat: 'x', message: '{{steps.settings.output.tweetText}}' }),
       ],
       edges: [{ id: 'e1', source: 'trigger', target: 'settings' }, { id: 'e2', source: 'settings', target: 'tweet' }],
     },
@@ -90,7 +90,7 @@ export const TEMPLATES: Template[] = [
       nodes: [
         trig(),
         T('settings', SETTINGS_LABEL, 300, 160, { discordUrl: 'PASTE_DISCORD_WEBHOOK_URL' }),
-        H('post', 'Post to Discord', 580, 160, { method: 'POST', url: '{{steps.settings.output.discordUrl}}', body: { content: '{{input.message}}' } }),
+        H('post', 'Post to Discord', 580, 160, { method: 'POST', url: '{{steps.settings.output.discordUrl}}', bodyMode: 'message', messageFormat: 'discord', message: '{{input.message}}' }),
       ],
       edges: [{ id: 'e1', source: 'trigger', target: 'settings' }, { id: 'e2', source: 'settings', target: 'post' }],
     },

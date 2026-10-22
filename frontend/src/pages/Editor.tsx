@@ -10,6 +10,7 @@ import { nodeTypes, FlowNodeData } from '../flow/CustomNodes';
 import Inspector from '../components/Inspector';
 import VersionsPanel from '../components/VersionsPanel';
 import SchedulePanel from '../components/SchedulePanel';
+import Panel from '../components/Panel';
 import { NODE_DEFS, NodeType } from '../constants';
 
 let idSeq = 1;
@@ -175,13 +176,17 @@ function EditorInner() {
   }, [selected, nodes, edges]);
 
   const errors = issues.filter((i) => i.level === 'error');
+  // "Fill in PASTE_…" is not a mistake, just setup still to do: show it as a friendly checklist, not red errors.
+  const setupIssues = errors.filter((i) => /^Fill in PASTE_/.test(i.message));
+  const otherErrors = errors.filter((i) => !/^Fill in PASTE_/.test(i.message));
 
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-3 px-4 h-14 border-b border-edge bg-panel">
         <Link to="/" className="btn">← Back</Link>
         <input className="input max-w-xs" value={name} onChange={(e) => { setName(e.target.value); dirty.current = true; }} />
-        {errors.length > 0 && <span className="badge bg-red-500/20 text-red-300">{errors.length} error(s)</span>}
+        {otherErrors.length > 0 && <span className="badge bg-red-500/20 text-red-300">{otherErrors.length} error(s)</span>}
+        {setupIssues.length > 0 && <span className="badge bg-amber-500/20 text-amber-300" title="Open the ⚙ Settings step and fill in the PASTE_ values">⚙ Setup needed</span>}
         {dirty.current && <span className="text-xs text-amber-400">unsaved</span>}
         <div className="ml-auto flex gap-2">
           <Link to={`/workflows/${id}/runs`} className="btn">Run history</Link>
@@ -205,28 +210,46 @@ function EditorInner() {
               </div>
             )}
           </div>
-          <button className="btn btn-primary" onClick={run} disabled={errors.length > 0}>▶ Run</button>
+          <button className="btn btn-primary" onClick={run} disabled={errors.length > 0}
+            title={setupIssues.length ? 'Finish the setup first (see the left panel)' : errors.length ? 'Fix the problems listed on the left first' : 'Run the workflow now (a test run)'}>▶ Run</button>
         </div>
       </div>
 
       <div className="flex-1 flex min-h-0">
         {/* palette */}
-        <div className="w-44 border-r border-edge bg-panel p-3 space-y-2">
+        <Panel side="left" storageKey="palette" defaultWidth={190} min={150} max={420} title="Add steps">
+        <div className="p-3 space-y-2">
           <div className="text-xs font-semibold text-slate-400 uppercase">Add node</div>
           {(Object.keys(NODE_DEFS) as NodeType[]).filter((t) => t !== 'trigger').map((t) => (
-            <button key={t} className="btn w-full justify-start" onClick={() => addNode(t)}>
+            <button key={t} className="btn w-full justify-start" onClick={() => addNode(t)} title={NODE_DEFS[t].description}>
               <span style={{ color: NODE_DEFS[t].color }}>{NODE_DEFS[t].icon}</span> {NODE_DEFS[t].label}
             </button>
           ))}
-          {errors.length > 0 && (
-            <div className="mt-4 text-xs space-y-1">
-              <div className="font-semibold text-red-400">Validation</div>
-              {issues.map((i, k) => (
-                <div key={k} className={i.level === 'error' ? 'text-red-300' : 'text-amber-300'}>• {i.message}</div>
+          {setupIssues.length > 0 && (
+            <div className="mt-4 text-xs space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-2" data-testid="setup-needed">
+              <div className="font-semibold text-amber-300">⚙ Finish setup ({setupIssues.length})</div>
+              <div className="text-amber-200/80">Click an item to open that step, then replace the PASTE_… text with your own value.</div>
+              {setupIssues.map((i, k) => (
+                <button key={k} className="block w-full text-left text-amber-100 hover:underline break-words [overflow-wrap:anywhere]" onClick={() => i.nodeId && setSelected(i.nodeId)}>• {i.message}</button>
               ))}
             </div>
           )}
+          {otherErrors.length > 0 && (
+            <div className="mt-4 text-xs space-y-1">
+              <div className="font-semibold text-red-400">Needs fixing</div>
+              {otherErrors.map((i, k) => (
+                <button key={k} className="block w-full text-left text-red-300 hover:underline" onClick={() => i.nodeId && setSelected(i.nodeId)}>• {i.message}</button>
+              ))}
+            </div>
+          )}
+          {issues.filter((i) => i.level !== 'error').length > 0 && (
+            <div className="mt-4 text-xs space-y-1">
+              <div className="font-semibold text-amber-400">Tips</div>
+              {issues.filter((i) => i.level !== 'error').map((i, k) => <div key={k} className="text-amber-300">• {i.message}</div>)}
+            </div>
+          )}
         </div>
+        </Panel>
 
         {/* canvas */}
         <div className="flex-1 relative">
@@ -255,9 +278,9 @@ function EditorInner() {
         </div>
 
         {/* inspector */}
-        <div className="w-80 border-l border-edge bg-panel flex flex-col">
+        <Panel side="right" storageKey="inspector" defaultWidth={340} min={280} max={760} title="Step settings">
           <Inspector node={selNode as any} onChange={patchSelected} onDelete={deleteSelected} upstream={upstream} workflowId={id} />
-        </div>
+        </Panel>
       </div>
     </div>
   );

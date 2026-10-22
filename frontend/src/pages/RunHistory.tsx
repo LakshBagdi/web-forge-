@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
-import { STATUS_STYLE } from '../constants';
+import { STATUS_STYLE, triggerInfo } from '../constants';
 
 interface RunRow {
   id: string; version: number; status: string; trigger: string; error: string | null;
@@ -50,7 +50,7 @@ export default function RunHistory() {
               return (
                 <tr key={r.id} className="border-t border-edge hover:bg-edge/40 cursor-pointer" onClick={() => nav(`/runs/${r.id}`)}>
                   <td className="p-3"><span className={`badge ${st.bg} ${st.text}`}>{st.label}</span></td>
-                  <td className="p-3">{r.trigger}</td>
+                  <td className="p-3">{(() => { const t = triggerInfo(r.trigger); return <span className={`badge ${t.cls}`} title={`Started by: ${r.trigger}`}>{t.icon} {t.label}</span>; })()}</td>
                   <td className="p-3">v{r.version}</td>
                   <td className="p-3 text-slate-400">{new Date(r.created_at).toLocaleString()}</td>
                   <td className="p-3">{duration(r)}</td>

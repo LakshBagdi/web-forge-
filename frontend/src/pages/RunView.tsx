@@ -4,7 +4,8 @@ import ReactFlow, { Background, Controls, Node, Edge, MarkerType, ReactFlowProvi
 import 'reactflow/dist/style.css';
 import { api, streamUrl } from '../api';
 import { nodeTypes, FlowNodeData } from '../flow/CustomNodes';
-import { NodeType, STATUS_STYLE } from '../constants';
+import { NodeType, STATUS_STYLE, triggerInfo } from '../constants';
+import Panel from '../components/Panel';
 
 interface LogLine { id: number; nodeId: string | null; level: string; message: string; ts: string; }
 
@@ -52,6 +53,7 @@ function Inner() {
   const [state, setState] = useState<Record<string, any>>({});
   const [status, setStatus] = useState('');
   const [wfId, setWfId] = useState('');
+  const [trig, setTrig] = useState('');
   const [sel, setSel] = useState<string | null>(null);
   const [onlyStep, setOnlyStep] = useState(false);
   const [logs, setLogs] = useState<LogLine[]>([]);
@@ -62,6 +64,7 @@ function Inner() {
   const applyRun = (run: any) => {
     setGraph(run.graph);
     setWfId(run.workflow_id);
+    setTrig(run.trigger);
     setState((s) => mergeNodeState(s, run.node_state || {}));
     setStatus((s) => forward(s, run.status));
   };
@@ -130,6 +133,7 @@ function Inner() {
         <Link to="/" className="btn">← Workflows</Link>
         <span className="font-semibold">Run</span>
         <span className={`badge ${st.bg} ${st.text}`}>{st.label}</span>
+        {trig && <span className={`badge ${triggerInfo(trig).cls}`} data-testid="run-trigger">{triggerInfo(trig).icon} {triggerInfo(trig).label}</span>}
         {wfId && <Link to={`/editor/${wfId}`} className="btn">Edit workflow</Link>}
         {wfId && <Link to={`/workflows/${wfId}/runs`} className="btn">Run history</Link>}
         <div className="ml-auto flex gap-2">
@@ -147,7 +151,8 @@ function Inner() {
             <Controls showInteractive={false} />
           </ReactFlow>
         </div>
-        <div className="w-96 border-l border-edge bg-panel flex flex-col">
+        <Panel side="right" storageKey="runlog" defaultWidth={400} min={280} max={900} title="Run details" noScroll>
+        <div className="flex flex-col flex-1 min-h-0">
           {selNode && (
             <div className="border-b border-edge p-3 text-xs space-y-2 max-h-[50%] overflow-y-auto">
               <div className="flex items-center gap-2">
@@ -194,6 +199,7 @@ function Inner() {
             {logs.length === 0 && <div className="text-slate-500">Waiting for logs…</div>}
           </div>
         </div>
+        </Panel>
       </div>
     </div>
   );

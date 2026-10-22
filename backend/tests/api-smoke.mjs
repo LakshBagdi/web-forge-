@@ -250,6 +250,55 @@ ok('schedule: one-time never fires twice',(await call('/runs?workflowId='+w.work
   ok('template: new upload is detected and posted once',y3.node_state.watch.output.changed===true&&y3.node_state.post?.status==='success'&&y3.node_state.watch.output.current==='vid2',JSON.stringify(y3.node_state.watch?.output));
 }
 
+
+// ---------- Simple body modes, mentions, "test this step", schedule behaviour ----------
+{
+  const echoOf=async(cfg)=>{const ww=await mk(A,'body-'+Date.now()+Math.random(),[T,N('p','http','P',{method:'POST',url:U+'/mock/notify',...cfg})],[E('e1','t','p')]);
+    const rr=await call('/runs/workflow/'+ww.workflow.id,A,'POST',{input:{name:'Asha'}}); const f=await waitRun(A,rr.run.id); return f.node_state?.p?.output?.body?.echo};
+  const d=await echoOf({bodyMode:'message',messageFormat:'discord',message:'@everyone hello {{input.name}} <@123456>'});
+  ok('message mode (Discord): writes {content}, keeps @everyone and <@id>, fills {{input.name}}',d?.content==='@everyone hello Asha <@123456>'&&Array.isArray(d?.allowed_mentions?.parse),JSON.stringify(d));
+  const sl=await echoOf({bodyMode:'message',messageFormat:'slack',message:'@channel deploy done, cc <@U123ABC> and @here'});
+  ok('message mode (Slack): @channel/@here become <!channel>/<!here>, <@U..> kept',sl?.text==='<!channel> deploy done, cc <@U123ABC> and <!here>',JSON.stringify(sl));
+  const xx=await echoOf({bodyMode:'message',messageFormat:'x',message:'Hi @someone from FlowForge'});
+  ok('message mode (X): writes {text} and keeps @handle',xx?.text==='Hi @someone from FlowForge'&&Object.keys(xx).length===1,JSON.stringify(xx));
+  const ff=await echoOf({bodyMode:'fields',fields:{user:'{{input.name}}',plan:'pro'}});
+  ok('fields mode: key/value rows become a JSON object',ff?.user==='Asha'&&ff?.plan==='pro',JSON.stringify(ff));
+  const long=await echoOf({bodyMode:'message',messageFormat:'discord',message:'x'.repeat(2500)});
+  ok('message mode (Discord): over-long text trimmed to 2000',long?.content?.length===2000);
+  const emptyMsg=await mk(A,'empty-msg',[T,N('p','http','P',{method:'POST',url:U+'/mock/notify',bodyMode:'message',messageFormat:'discord',message:''})],[E('e1','t','p')]);
+  ok('message mode: empty message blocks the run',(await call('/runs/workflow/'+emptyMsg.workflow.id,A,'POST',{})).s===400);
+
+  // test this step
+  const tw=await mk(A,'testnode',[T,N('u','http','U',{method:'GET',url:U+'/mock/users/1'}),N('n','http','N',{method:'POST',url:U+'/mock/notify',bodyMode:'message',messageFormat:'other',message:'hi {{steps.u.output.body.name}}'})],[E('e1','t','u'),E('e2','u','n')]);
+  const tn=(node,id=tw.workflow.id,tok=A)=>call(`/workflows/${id}/test-node`,tok,'POST',{node});
+  let t1=await tn({id:'u',type:'http',label:'U',config:{method:'GET',url:U+'/mock/users/2'}});
+  ok('test step: runs one http step and returns the response',t1.ok===true&&t1.output?.body?.id===2&&t1.output?.status===200,JSON.stringify(t1).slice(0,200));
+  let t2=await tn({id:'n',type:'http',label:'N',config:{method:'POST',url:U+'/mock/notify',bodyMode:'message',messageFormat:'other',message:'hi {{steps.u.output.body.name}}'}});
+  ok('test step: warns that earlier-step data is missing before any run',t2.ok===true&&(t2.unresolved||[]).includes('steps.u.output.body.name'),JSON.stringify(t2.unresolved));
+  const rr0=await call('/runs/workflow/'+tw.workflow.id,A,'POST',{}); await waitRun(A,rr0.run.id);
+  let t3=await tn({id:'n',type:'http',label:'N',config:{method:'POST',url:U+'/mock/notify',bodyMode:'message',messageFormat:'other',message:'hi {{steps.u.output.body.name}}'}});
+  ok('test step: after one run it uses real earlier data',t3.ok===true&&t3.output?.body?.echo?.message==='hi User 1'&&(t3.unresolved||[]).length===0,JSON.stringify(t3).slice(0,250));
+  let t4=await tn({id:'x',type:'http',label:'X',config:{method:'GET',url:'http://169.254.169.254/latest/'}});
+  ok('test step: SSRF guard applies to tests too',t4.ok===false&&/block|private|not allowed|forbid/i.test(t4.error||''),JSON.stringify(t4).slice(0,200));
+  let t5=await tn({id:'f',type:'http',label:'F',config:{method:'GET',url:U+'/mock/always-fail'}});
+  ok('test step: failure reports the error and the response',t5.ok===false&&/500|fail/i.test(t5.error||''),JSON.stringify(t5).slice(0,200));
+  let t6=await tn({id:'w',type:'watch',label:'W',config:{value:'x'}});
+  ok('test step: watch/delay refused with an explanation',t6.ok===false&&/Press Run/.test(t6.error||''));
+  ok("test step: other user can't test my workflow",(await tn({id:'u',type:'http',config:{method:'GET',url:U+'/mock/users/1'}},tw.workflow.id,Bt)).s===404);
+
+  // schedules: creating one must NOT run anything right away; list shows next run
+  const sw=await mk(A,'sched-quiet',[T,N('x','transform','X',{mapping:{a:'1'}})],[E('e1','t','x')]);
+  const before=(await call('/runs?workflowId='+sw.workflow.id,A)).runs.length;
+  const cs=await call(`/schedules/workflow/${sw.workflow.id}`,A,'POST',{cron:'0 3 1 1 *',tz:'Asia/Kolkata'});
+  const cs2=await call(`/schedules/workflow/${sw.workflow.id}`,A,'POST',{runAt:new Date(Date.now()+3600e3).toISOString(),tz:'Asia/Kolkata'});
+  await sleep(4000);
+  ok('schedule: creating schedules does not trigger a run',(await call('/runs?workflowId='+sw.workflow.id,A)).runs.length===before);
+  const lst=(await call(`/schedules/workflow/${sw.workflow.id}`,A)).schedules;
+  const cron1=lst.find(x=>x.cron), once1=lst.find(x=>x.run_at);
+  ok('schedule: list includes next run time (cron + one-time)',typeof cron1?.next_at==='number'&&cron1.next_at>Date.now()&&typeof once1?.next_at==='number',JSON.stringify(lst).slice(0,300));
+  ok('schedule: cron next run is 03:00 IST on 1 Jan (21:30 UTC the day before)',new Date(cron1.next_at).getUTCHours()===21&&new Date(cron1.next_at).getUTCMinutes()===30,new Date(cron1.next_at).toISOString());
+}
+
 // SSRF variants
 for (const [name,url] of [['metadata','http://169.254.169.254/latest/'],['decimal ip','http://2130706433:4000/api/health'.replace('2130706433','2852039166')],['ipv6 loopback','http://[::1]:4000/api/health'],['file scheme','file:///etc/passwd']]) {
   w=await mk(A,'ssrf-'+name,[T,N('h','http','H',{method:'GET',url})],[E('e1','t','h')]);

@@ -32,6 +32,11 @@ export async function scheduleCron(scheduleId: string, cron: string, tz = 'UTC')
   );
 }
 
+/** When a repeating schedule will fire next (epoch ms), or null if unknown. */
+export async function nextCronRun(scheduleId: string): Promise<number | null> {
+  try { const js = await runQueue.getJobScheduler(`cron:${scheduleId}`); return js?.next ?? null; } catch { return null; }
+}
+
 export async function removeCron(scheduleId: string) {
   await runQueue.removeJobScheduler(`cron:${scheduleId}`);
   await removeOnce(scheduleId);

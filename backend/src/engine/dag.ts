@@ -137,6 +137,10 @@ export function validateWorkflow(graph: WorkflowGraph): ValidationIssue[] {
       if (!n.config?.url || typeof n.config.url !== 'string') {
         issues.push({ level: 'error', nodeId: n.id, message: 'HTTP node is missing a URL' });
       }
+      const method0 = (n.config?.method || 'GET').toUpperCase();
+      if (n.config?.bodyMode === 'message' && ['POST', 'PUT', 'PATCH'].includes(method0) && !String(n.config?.message ?? '').trim()) {
+        issues.push({ level: 'error', nodeId: n.id, message: `"${n.label || n.id}": type the message to send (or switch the body to Fields / Custom JSON)` });
+      }
       const method = (n.config?.method || 'GET').toUpperCase();
       if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'].includes(method)) {
         issues.push({ level: 'error', nodeId: n.id, message: `Invalid HTTP method ${method}` });
@@ -171,6 +175,8 @@ export function validateWorkflow(graph: WorkflowGraph): ValidationIssue[] {
       const ms = Number(n.config?.ms);
       if (!Number.isFinite(ms) || ms < 0) {
         issues.push({ level: 'error', nodeId: n.id, message: 'Delay node needs a non-negative duration (ms)' });
+      } else if (ms > 120_000) {
+        issues.push({ level: 'warning', nodeId: n.id, message: 'Delay waits at most 2 minutes. For longer waits use ⏰ Schedule → “Run once at a specific time”' });
       }
     }
   }

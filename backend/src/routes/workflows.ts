@@ -8,6 +8,8 @@ import {
   getOrCreateWebhookToken, rotateWebhookToken,
 } from '../services/workflows';
 import { validateWorkflow } from '../engine/dag';
+import { testNode } from '../engine/testNode';
+import rateLimit from 'express-rate-limit';
 
 export const workflowRouter = Router();
 workflowRouter.use(requireAuth);
@@ -77,6 +79,16 @@ workflowRouter.post('/:id/webhook/rotate', wrap(async (req: AuthedRequest, res) 
   if (!token) throw new HttpError(404, 'Workflow not found');
   res.json({ token, path: `/hooks/${token}` });
 }));
+
+// Try one step on its own (really sends the request). Uses data from the latest run as earlier steps' output.
+workflowRouter.post('/:id/test-node', rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false, keyGenerator: (req: any) => `tn:${req.userId}` }),
+  wrap(async (req: AuthedRequest, res) => {
+    const wf = await getWorkflow(req.userId!, req.params.id);
+    if (!wf) throw new HttpError(404, 'Workflow not found');
+    const node = z.object({ id: z.string(), type: z.string(), label: z.string().optional(), config: z.record(z.string(), z.any()).default({}), timeoutMs: z.number().optional() }).parse(req.body?.node);
+    const input = req.body?.input && typeof req.body.input === 'object' ? req.body.input : {};
+    res.json(await testNode(req.userId!, req.params.id, node as any, input));
+  }));
 
 workflowRouter.post('/:id/validate', wrap(async (req: AuthedRequest, res) => {
   const wf = await getWorkflow(req.userId!, req.params.id);

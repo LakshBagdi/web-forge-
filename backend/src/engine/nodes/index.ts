@@ -96,6 +96,25 @@ export function urlForLog(raw: string): string {
   } catch { return '(invalid URL)'; }
 }
 
+/**
+ * "Message" body mode: the user types plain text and picks where it goes; we write the JSON.
+ * Mentions: Discord understands @everyone / @here / <@userId> / <@&roleId> as typed; Slack needs
+ * <!channel> / <!here> / <@MEMBERID>, so we translate the friendly @channel / @here / @everyone;
+ * X turns @handle into a mention by itself.
+ */
+export function buildMessageBody(format: string, text: string): any {
+  switch (format) {
+    case 'discord':
+      return { content: text.length > 2000 ? text.slice(0, 1999) + '…' : text, allowed_mentions: { parse: ['everyone', 'roles', 'users'] } };
+    case 'slack':
+      return { text: text.replace(/(^|\s)@(channel|here|everyone)\b/g, (_m, pre, w) => `${pre}<!${w === 'everyone' ? 'channel' : w}>`) };
+    case 'x':
+      return { text };
+    default:
+      return { message: text };
+  }
+}
+
 async function runHttp(node: WorkflowNode, ctx: ExecContext, svc: NodeServices): Promise<NodeResult> {
   const cfg = resolveTemplates(node.config, ctx);
   let url: string = cfg.url;
@@ -117,7 +136,13 @@ async function runHttp(node: WorkflowNode, ctx: ExecContext, svc: NodeServices):
     svc.log('debug', `Applied credential (${cred.type})`);
   }
   let body = cfg.body;
-  if (typeof body === 'string' && cfg.bodyType === 'json') {
+  if (cfg.bodyMode === 'message') {
+    const text = String(cfg.message ?? '');
+    body = buildMessageBody(String(cfg.messageFormat || 'other'), text);
+    if (cfg.messageFormat === 'x' && text.length > 280) svc.log('warn', `This post is ${text.length} characters; X allows 280`);
+  } else if (cfg.bodyMode === 'fields') {
+    body = cfg.fields && typeof cfg.fields === 'object' ? cfg.fields : {};
+  } else if (typeof body === 'string' && cfg.bodyType === 'json') {
     try { body = JSON.parse(body); } catch { /* send as string */ }
   }
   svc.log('info', `${(cfg.method || 'GET').toUpperCase()} ${urlForLog(url)}`);

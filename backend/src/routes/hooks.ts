@@ -12,7 +12,10 @@ import { validateWorkflow, hasErrors } from '../engine/dag';
  */
 export const hooksRouter = Router();
 
-hooksRouter.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
+// Stops token guessing: only FAILED requests (unknown token, errors) count against an IP, so a busy
+// legitimate sender (GitHub, Stripe...) calling several of your URLs is never throttled by this one.
+hooksRouter.use(rateLimit({ windowMs: 60_000, max: 30, skipSuccessfulRequests: true, standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Too many failed webhook requests from this address, slow down' } }));
 
 // Per-URL cap too, so one leaked/looping URL can't flood the queue (the IP cap above stops token guessing).
 hooksRouter.use('/:token', rateLimit({

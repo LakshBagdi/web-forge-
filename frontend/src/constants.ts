@@ -65,3 +65,14 @@ export const OPERATORS = [
   { value: 'exists', label: 'exists' },
   { value: 'truthy', label: 'is truthy' },
 ];
+
+/** Who/what started a run, in plain words. */
+export function triggerInfo(t: string | undefined): { icon: string; label: string; cls: string } {
+  switch (t) {
+    case 'schedule': return { icon: '⏰', label: 'Scheduled', cls: 'bg-sky-500/20 text-sky-300' };
+    case 'webhook': return { icon: '🔗', label: 'Webhook', cls: 'bg-violet-500/20 text-violet-300' };
+    case 'retry': return { icon: '↻', label: 'Retry', cls: 'bg-amber-500/20 text-amber-300' };
+    case 'manual': case undefined: case '': return { icon: '▶', label: 'You pressed Run', cls: 'bg-slate-500/20 text-slate-300' };
+    default: return { icon: '•', label: t, cls: 'bg-slate-500/20 text-slate-300' };
+  }
+}
