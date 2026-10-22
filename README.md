@@ -171,4 +171,4 @@ FlowForge deploys as **one service**: the server also serves the website, so you
 ---
 
 ## 👥 Squad — Web Forge 2026
-Built in a 12-hour sprint for Zenith MANIT Bhopal. online competition 2026 ORZ ORZ  
+Built in a 12-hour sprint for Zenith MANIT Bhopal. online competition 2026 
