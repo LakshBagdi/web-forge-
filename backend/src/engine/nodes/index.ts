@@ -82,6 +82,20 @@ async function applyCredential(credId: string, cred: DecryptedCredential, header
   }
 }
 
+const SECRET_QUERY = /^(key|api_?key|apikey|token|access_token|secret|client_secret|signature|sig|auth|password)$/i;
+/** URL for the run log: hides secret query values and webhook tokens (Discord/Slack) so keys never land in logs. */
+export function urlForLog(raw: string): string {
+  try {
+    const u = new URL(raw);
+    for (const k of [...u.searchParams.keys()]) if (SECRET_QUERY.test(k)) u.searchParams.set(k, '***');
+    if (/(^|\.)(discord|discordapp)\.com$/.test(u.hostname) && /^\/api(\/v\d+)?\/webhooks\//.test(u.pathname)) {
+      const parts = u.pathname.split('/'); parts[parts.length - 1] = '***'; u.pathname = parts.join('/');
+    }
+    if (u.hostname === 'hooks.slack.com') u.pathname = u.pathname.split('/').slice(0, 2).join('/') + '/***';
+    return u.toString().replace(/%2A%2A%2A/g, '***');
+  } catch { return '(invalid URL)'; }
+}
+
 async function runHttp(node: WorkflowNode, ctx: ExecContext, svc: NodeServices): Promise<NodeResult> {
   const cfg = resolveTemplates(node.config, ctx);
   let url: string = cfg.url;
@@ -106,7 +120,7 @@ async function runHttp(node: WorkflowNode, ctx: ExecContext, svc: NodeServices):
   if (typeof body === 'string' && cfg.bodyType === 'json') {
     try { body = JSON.parse(body); } catch { /* send as string */ }
   }
-  svc.log('info', `${(cfg.method || 'GET').toUpperCase()} ${url}`);
+  svc.log('info', `${(cfg.method || 'GET').toUpperCase()} ${urlForLog(url)}`);
   const res = await safeFetch({ url, method: cfg.method, headers, body, timeoutMs: node.timeoutMs });
   svc.log('info', `↳ ${res.status} ${res.statusText} (${res.durationMs}ms)`);
 

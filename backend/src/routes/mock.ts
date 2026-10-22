@@ -95,3 +95,11 @@ mockRouter.get('/protected', (req, res) => {
   if (!auth.startsWith('Bearer ')) return res.status(401).json({ error: 'missing bearer token' });
   res.json({ ok: true, tokenPrefix: auth.slice(7, 10) });
 });
+
+// Same JSON shape as YouTube Data API v3 playlistItems, so the real templates can be tested offline.
+mockRouter.get('/youtube/playlistItems', (req, res) => {
+  if (!req.query.key) return res.status(403).json({ error: { message: 'API key not valid' } });
+  const ch = String(req.query.playlistId || 'UUdemo');
+  const n = channels.get(ch) ?? 1;
+  res.json({ items: [{ snippet: { title: `Video #${n} from ${ch}`, resourceId: { kind: 'youtube#video', videoId: `vid${n}` } } }] });
+});

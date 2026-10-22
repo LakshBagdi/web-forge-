@@ -64,18 +64,23 @@ export default function Workflows() {
           <button className="btn btn-primary" disabled={busy} onClick={() => create(false)}>+ New workflow</button>
         </div>
       </div>
-      <div className="mb-6">
-        <div className="text-sm font-semibold text-slate-300 mb-2">Start from a template</div>
-        <div className="grid md:grid-cols-3 gap-3">
-          {TEMPLATES.map((t) => (
-            <button key={t.key} disabled={busy} data-testid={`tpl-${t.key}`} onClick={() => fromTemplate(t.key)}
-              className="card p-3 text-left hover:border-accent transition">
-              <div className="font-semibold">{t.emoji} {t.name}</div>
-              <div className="text-xs text-slate-400 mt-1">{t.blurb}</div>
-            </button>
-          ))}
+      {(['real', 'demo'] as const).map((g) => (
+        <div className="mb-6" key={g}>
+          <div className="text-sm font-semibold text-slate-300 mb-2">
+            {g === 'real' ? 'Real services — paste your keys into the ⚙ Settings node' : 'Instant demos — run offline, no setup'}
+          </div>
+          <div className="grid md:grid-cols-3 gap-3">
+            {TEMPLATES.filter((t) => t.group === g).map((t) => (
+              <button key={t.key} disabled={busy} data-testid={`tpl-${t.key}`} onClick={() => fromTemplate(t.key)}
+                className="card p-3 text-left hover:border-accent transition">
+                <div className="font-semibold">{t.emoji} {t.name}</div>
+                <div className="text-xs text-slate-400 mt-1">{t.blurb}</div>
+                {t.needs && <div className="text-[11px] text-amber-300/90 mt-2">You need: {t.needs}</div>}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      ))}
       {wfs.length === 0 ? (
         <div className="card p-10 text-center text-slate-400">
           No workflows yet. Start with a <button className="text-accent" onClick={() => create(true)}>sample workflow</button> to see branching + API calls in action.

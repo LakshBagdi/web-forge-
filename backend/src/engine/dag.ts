@@ -128,6 +128,11 @@ export function validateWorkflow(graph: WorkflowGraph): ValidationIssue[] {
       issues.push({ level: 'warning', nodeId: n.id, message: 'Trigger has no outgoing steps' });
     }
 
+    // Starter templates ship with PASTE_... placeholders. Refuse to run until they are replaced, so a
+    // half-configured workflow can never fire (or spam failing scheduled runs).
+    const ph = JSON.stringify(n.config ?? {}).match(/PASTE_[A-Z0-9_]+/);
+    if (ph) issues.push({ level: 'error', nodeId: n.id, message: `Fill in ${ph[0]} in "${n.label || n.id}" before running` });
+
     if (n.type === 'http') {
       if (!n.config?.url || typeof n.config.url !== 'string') {
         issues.push({ level: 'error', nodeId: n.id, message: 'HTTP node is missing a URL' });

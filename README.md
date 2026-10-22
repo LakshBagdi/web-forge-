@@ -103,7 +103,12 @@ A workflow can start in four ways, and talk to **any** service that has an HTTP 
 
 `{{now.iso}}`, `{{now.in30min}}`, `{{now.in1h}}`, `{{now.date}}` give the run's start time (handy for "meeting in 30 minutes").
 
-Three ready-made templates are on the Workflows page: *Create a Google Meet at a set time*, *New video → post it*, *Webhook → alert*. They run offline against built-in demo endpoints; swap the URL for the real API and pick your credential to go live.
+The Workflows page has **ready-made templates**:
+
+- **Real services** (paste your keys into the one `⚙ Settings` node, Save, Run): *New YouTube video → Discord*, *New YouTube video → post on X*, *Create a real Google Meet (at a set time)*, *Post a tweet on X*, *Webhook → Discord message*. A workflow that still contains a `PASTE_...` placeholder refuses to run, so nothing half-configured can fire.
+- **Instant demos** (run offline against built-in demo endpoints): Meet at a set time, new video → post, webhook → alert.
+
+API keys and webhook secrets in URLs are masked in run logs. To get an X refresh token run `node scripts/x-get-refresh-token.mjs` (see the file header).
 
 ## 🧪 Tests
 

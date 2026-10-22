@@ -219,6 +219,37 @@ ok('schedule: one-time never fires twice',(await call('/runs?workflowId='+w.work
   ok('webhook: flood is rate limited per URL (429 after 60)',codes.filter(c=>c===202).length===60&&codes.includes(429),`202s=${codes.filter(c=>c===202).length} 429s=${codes.filter(c=>c===429).length}`);
 }
 
+
+// ---------- Real-service templates: placeholders, settings node, key redaction ----------
+{
+  const ytGraph=(pl,key)=>({nodes:[T,N('settings','transform','Settings',{mapping:{playlistId:pl,youtubeApiKey:key,discordUrl:U+'/mock/notify'}}),
+    N('fetch','http','Latest video',{method:'GET',url:U+'/mock/youtube/playlistItems',query:{part:'snippet',maxResults:'1',playlistId:'{{steps.settings.output.playlistId}}',key:'{{steps.settings.output.youtubeApiKey}}'}}),
+    N('watch','watch','New video?',{value:'{{steps.fetch.output.body.items.0.snippet.resourceId.videoId}}',fireOnFirstRun:true}),
+    N('post','http','Post',{method:'POST',url:'{{steps.settings.output.discordUrl}}',bodyType:'json',body:{content:'New video: {{steps.fetch.output.body.items.0.snippet.title}} https://youtu.be/{{steps.fetch.output.body.items.0.snippet.resourceId.videoId}}'}}),
+    N('idle','transform','Idle',{mapping:{n:'none'}})],
+    edges:[E('e1','t','settings'),E('e2','settings','fetch'),E('e3','fetch','watch'),E('e4','watch','post','true'),E('e5','watch','idle','false')]});
+  const pl='UU'+Date.now();
+  const unfilled=await call('/workflows',A,'POST',{name:'tpl-unfilled',graph:ytGraph('PASTE_UPLOADS_PLAYLIST_ID','PASTE_YOUTUBE_API_KEY')});
+  const rUn=await call('/runs/workflow/'+unfilled.workflow.id,A,'POST',{});
+  ok('template: unfilled PASTE_ placeholders block the run (400)',rUn.s===400,JSON.stringify(rUn).slice(0,200));
+  const vUn=await call(`/workflows/${unfilled.workflow.id}/validate`,A,'POST',{});
+  ok('template: validation names the placeholder',/PASTE_UPLOADS_PLAYLIST_ID/.test(JSON.stringify(vUn)),JSON.stringify(vUn).slice(0,200));
+  const hookTok=(await call(`/workflows/${unfilled.workflow.id}/webhook`,A)).token;
+  ok('template: webhook also refuses an unfilled workflow (422)',(await hook(hookTok,{})).s===422);
+  const filled=await call('/workflows',A,'POST',{name:'tpl-filled',graph:ytGraph(pl,'AIzaSECRETKEY123')});
+  const runF=async()=>{const rr=await call('/runs/workflow/'+filled.workflow.id,A,'POST',{});return waitRun(A,rr.run.id)};
+  let y1=await runF();
+  ok('template: filled settings -> first check posts latest video',y1.status==='success'&&y1.node_state.post?.status==='success'&&y1.node_state.watch.output.current==='vid1',JSON.stringify(y1.node_state?.post||y1.node_state?.fetch));
+  const yl=JSON.stringify((await call(`/runs/${y1.id}/logs`,A)).logs);
+  ok('template: API key hidden in run logs',yl.includes('key=***')&&!yl.includes('AIzaSECRETKEY123'),yl.slice(0,300));
+  let y2=await runF();
+  ok('template: second check does not repost',y2.node_state.watch.output.changed===false&&y2.node_state.idle?.status==='success');
+  await fetch(`${ROOT}/mock/latest-video/publish?channel=${pl}`,{method:'POST'});
+  // the mock's YouTube endpoint reads the same per-playlist counter
+  let y3=await runF();
+  ok('template: new upload is detected and posted once',y3.node_state.watch.output.changed===true&&y3.node_state.post?.status==='success'&&y3.node_state.watch.output.current==='vid2',JSON.stringify(y3.node_state.watch?.output));
+}
+
 // SSRF variants
 for (const [name,url] of [['metadata','http://169.254.169.254/latest/'],['decimal ip','http://2130706433:4000/api/health'.replace('2130706433','2852039166')],['ipv6 loopback','http://[::1]:4000/api/health'],['file scheme','file:///etc/passwd']]) {
   w=await mk(A,'ssrf-'+name,[T,N('h','http','H',{method:'GET',url})],[E('e1','t','h')]);
