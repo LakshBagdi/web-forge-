@@ -122,7 +122,11 @@ async function runNodeWithRetry(
 ): Promise<NodeRunState> {
   const maxAttempts = Math.max(1, node.retry?.maxAttempts ?? 1);
   const backoff = Math.max(0, node.retry?.backoffMs ?? 500);
-  const timeoutMs = node.timeoutMs ?? config.stepTimeoutMs;
+  // A Delay node legitimately waits longer than the default step timeout, so size its timeout to the wait.
+  const defaultTimeout = node.type === 'delay'
+    ? Math.min(Math.max(Number(node.config?.ms) || 0, 0), 120_000) + 2_000
+    : config.stepTimeoutMs;
+  const timeoutMs = node.timeoutMs && node.timeoutMs >= 100 ? node.timeoutMs : defaultTimeout; // ignore blank/0/garbage
 
   const state: NodeRunState = { status: 'running', attempts: 0, startedAt: new Date().toISOString() };
   await saveNodeState(runId, node.id, state);

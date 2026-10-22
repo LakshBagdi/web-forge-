@@ -6,6 +6,21 @@ interface Props {
   node: { id: string; type: NodeType; label?: string; config: any; retry?: any; timeoutMs?: number } | null;
   onChange: (patch: { label?: string; config?: any; retry?: any; timeoutMs?: number }) => void;
   onDelete: () => void;
+  upstream?: { id: string; label: string; type: NodeType }[];
+}
+
+/** Click-to-copy chip for a template reference like {{steps.http1.output.body}}. */
+function RefChip({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text); setDone(true); setTimeout(() => setDone(false), 1200); } catch { /* clipboard blocked */ }
+  };
+  return (
+    <button type="button" onClick={copy} title="Click to copy"
+      className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-ink border border-edge hover:border-accent text-left break-all">
+      {done ? 'copied ✓' : text}
+    </button>
+  );
 }
 
 function KeyValueEditor({ value, onChange }: { value: Record<string, string>; onChange: (v: Record<string, string>) => void }) {
@@ -29,7 +44,7 @@ function KeyValueEditor({ value, onChange }: { value: Record<string, string>; on
   );
 }
 
-export default function Inspector({ node, onChange, onDelete }: Props) {
+export default function Inspector({ node, onChange, onDelete, upstream = [] }: Props) {
   const [creds, setCreds] = useState<{ id: string; name: string; type: string }[]>([]);
   useEffect(() => { api.get('/credentials').then((d) => setCreds(d.credentials)).catch(() => {}); }, []);
 
@@ -51,7 +66,27 @@ export default function Inspector({ node, onChange, onDelete }: Props) {
 
       <div><label className="label">Label</label>
         <input className="input" value={node.label || ''} onChange={(e) => onChange({ label: e.target.value })} />
+        <div className="text-[11px] text-slate-500 mt-1">Node id: <span className="font-mono text-slate-300">{node.id}</span></div>
       </div>
+
+      {upstream.length > 0 && node.type !== 'trigger' && (
+        <div className="rounded-md border border-edge p-2 space-y-2">
+          <div className="text-xs font-semibold text-slate-400">Data from earlier steps (click to copy)</div>
+          {upstream.map((u) => (
+            <div key={u.id} className="space-y-1">
+              <div className="text-[11px] text-slate-400">{u.label || u.id} <span className="font-mono text-slate-500">({u.id})</span></div>
+              <div className="flex flex-wrap gap-1">
+                {u.type === 'http' && <>
+                  <RefChip text={`{{steps.${u.id}.output.body}}`} />
+                  <RefChip text={`{{steps.${u.id}.output.status}}`} />
+                </>}
+                {u.type !== 'http' && <RefChip text={`{{steps.${u.id}.output}}`} />}
+              </div>
+            </div>
+          ))}
+          <div className="text-[11px] text-slate-500">Add a field name to go deeper, e.g. <span className="font-mono">.body.name</span></div>
+        </div>
+      )}
 
       {node.type === 'http' && (
         <>

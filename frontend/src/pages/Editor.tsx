@@ -79,8 +79,16 @@ function EditorInner() {
     dirty.current = true;
   }, []);
 
+  // Readable, unique ids (http1, http2, condition1...) because users type them in {{steps.<id>...}}.
+  const nextNodeId = (type: NodeType) => {
+    const used = new Set(nodes.map((n) => n.id));
+    let i = 1;
+    while (used.has(`${type}${i}`)) i++;
+    return `${type}${i}`;
+  };
+
   const addNode = (type: NodeType) => {
-    const nid = newId(type);
+    const nid = nextNodeId(type);
     setNodes((n) => [...n, {
       id: nid, type, position: { x: 200 + Math.random() * 300, y: 120 + Math.random() * 200 },
       data: { label: NODE_DEFS[type].label, nodeType: type, config: { ...NODE_DEFS[type].defaultConfig } } as any,
@@ -129,6 +137,19 @@ function EditorInner() {
     if (!n) return null;
     return { id: n.id, type: (n.data as any).nodeType, label: (n.data as any).label, config: (n.data as any).config, retry: (n.data as any).retry, timeoutMs: (n.data as any).timeoutMs };
   }, [nodes, selected]);
+
+  // Every node that can reach the selected node: those are the ones whose output it may reference.
+  const upstream = useMemo(() => {
+    if (!selected) return [];
+    const seen = new Set<string>();
+    const stack = [selected];
+    while (stack.length) {
+      const cur = stack.pop()!;
+      for (const e of edges) if (e.target === cur && !seen.has(e.source)) { seen.add(e.source); stack.push(e.source); }
+    }
+    return nodes.filter((n) => seen.has(n.id))
+      .map((n) => ({ id: n.id, label: (n.data as any).label as string, type: (n.data as any).nodeType as NodeType }));
+  }, [selected, nodes, edges]);
 
   const errors = issues.filter((i) => i.level === 'error');
 
@@ -197,7 +218,7 @@ function EditorInner() {
 
         {/* inspector */}
         <div className="w-80 border-l border-edge bg-panel flex flex-col">
-          <Inspector node={selNode as any} onChange={patchSelected} onDelete={deleteSelected} />
+          <Inspector node={selNode as any} onChange={patchSelected} onDelete={deleteSelected} upstream={upstream} />
         </div>
       </div>
     </div>
