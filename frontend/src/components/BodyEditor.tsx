@@ -60,6 +60,20 @@ export default function BodyEditor({ cfg, set, upstream }: { cfg: any; set: (p: 
     }
   }
 
+  // Friendly view of any {{ }} pieces in the message: people should type plain words; automatic data is shown as chips.
+  const knownIds = new Set(upstream.map((u) => u.id));
+  const tokens: string[] = [...String(cfg.message || '').matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((m) => m[1]);
+  const tokenOk = (t: string) => t === 'input' || t.startsWith('input.') || t.startsWith('now.') || (t.startsWith('steps.') && knownIds.has(t.split('.')[1]));
+  const tokenName = (t: string) => {
+    if (t === 'now.iso') return 'the time the run started';
+    if (t.startsWith('now.')) return 'the date / time';
+    if (t === 'input.message') return 'the message sent to the webhook';
+    if (t.startsWith('input.')) return `run input “${t.slice(6)}”`;
+    const m = t.match(/^steps\.([^.]+)\.output\.?(.*)$/);
+    if (m) { const u = upstream.find((x) => x.id === m[1]); return `${u?.label || m[1]}${m[2] ? ' → ' + m[2].split('.').slice(-1)[0] : ''}`; }
+    return t;
+  };
+  const badTokens = tokens.filter((t) => !tokenOk(t));
   const messageBody = previewBody(format, cfg.message || '');
   const fieldsBody = cfg.fields || {};
 
@@ -84,6 +98,17 @@ export default function BodyEditor({ cfg, set, upstream }: { cfg: any; set: (p: 
             <textarea ref={msgRef} className="input h-24" data-testid="message-text" value={cfg.message || ''} spellCheck
               placeholder="e.g. 🎬 New video is out! Check it now."
               onChange={(e) => set({ bodyMode: 'message', messageFormat: format, message: e.target.value })} />
+            {tokens.length > 0 && badTokens.length === 0 && (
+              <div className="mt-1 text-[11px] text-slate-400" data-testid="message-auto">
+                Filled in automatically when it runs: {[...new Set(tokens)].map((t) => <span key={t} className="inline-block mr-1 mb-0.5 px-1.5 py-0.5 rounded bg-accent/15 text-blue-200" title={`{{${t}}}`}>{tokenName(t)}</span>)}
+                <span className="block text-slate-500">The <span className="font-mono">{'{{ }}'}</span> parts are automatic — leave them as they are.</span>
+              </div>
+            )}
+            {badTokens.length > 0 && (
+              <div className="mt-1 text-[11px] text-amber-300 rounded border border-amber-500/30 bg-amber-500/10 p-1.5" data-testid="message-bad-token">
+                ⚠ <span className="font-mono">{`{{${badTokens[0]}}}`}</span> is not data FlowForge has, so it would be sent as nothing. Just delete the curly braces and type normal words, or use <b>＋ Insert data</b>.
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap gap-1 items-center">
             <select className="input !w-auto text-xs py-1" value="" onChange={(e) => { if (e.target.value) insert(e.target.value); }} aria-label="insert data">
@@ -130,10 +155,10 @@ export default function BodyEditor({ cfg, set, upstream }: { cfg: any; set: (p: 
               </Tip>
             </div>
           )}
-          <div className="rounded border border-edge/70 p-2">
-            <div className="text-[11px] text-slate-500 mb-1">What FlowForge sends (it writes this for you):</div>
-            <pre className="text-[11px] font-mono whitespace-pre-wrap break-all text-slate-300 max-h-32 overflow-y-auto">{JSON.stringify(messageBody, null, 2)}</pre>
-          </div>
+          <details className="rounded border border-edge/70 p-2">
+            <summary className="text-[11px] text-slate-500 cursor-pointer select-none">Technical details (optional)</summary>
+            <pre className="mt-1 text-[11px] font-mono whitespace-pre-wrap break-all text-slate-300 max-h-32 overflow-y-auto">{JSON.stringify(messageBody, null, 2)}</pre>
+          </details>
         </>
       )}
 
@@ -141,10 +166,10 @@ export default function BodyEditor({ cfg, set, upstream }: { cfg: any; set: (p: 
         <>
           <p className="text-[11px] text-slate-400">Add the pieces of information to send, one per row. Example: name = <span className="font-mono">Asha</span>, plan = <span className="font-mono">pro</span>. Values can use <span className="font-mono">{'{{data}}'}</span> from earlier steps.</p>
           <KeyValueEditor value={fieldsBody} onChange={(fields) => set({ bodyMode: 'fields', fields })} keyPlaceholder="field name" valuePlaceholder="value" addLabel="+ Add a field" />
-          <div className="rounded border border-edge/70 p-2">
-            <div className="text-[11px] text-slate-500 mb-1">What FlowForge sends:</div>
-            <pre className="text-[11px] font-mono whitespace-pre-wrap break-all text-slate-300 max-h-32 overflow-y-auto">{JSON.stringify(fieldsBody, null, 2)}</pre>
-          </div>
+          <details className="rounded border border-edge/70 p-2">
+            <summary className="text-[11px] text-slate-500 cursor-pointer select-none">Technical details (optional)</summary>
+            <pre className="mt-1 text-[11px] font-mono whitespace-pre-wrap break-all text-slate-300 max-h-32 overflow-y-auto">{JSON.stringify(fieldsBody, null, 2)}</pre>
+          </details>
         </>
       )}
 
