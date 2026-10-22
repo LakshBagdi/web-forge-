@@ -54,7 +54,7 @@ runRouter.post('/workflow/:workflowId', wrap(async (req: AuthedRequest, res) => 
   const wf = await getWorkflow(req.userId!, req.params.workflowId);
   if (!wf) throw new HttpError(404, 'Workflow not found');
   const issues = validateWorkflow(wf.graph);
-  if (hasErrors(issues)) throw new HttpError(400, 'Workflow has validation errors; fix them before running');
+  if (hasErrors(issues)) throw new HttpError(400, `Can’t run yet: ${issues.find((i) => i.level === 'error')?.message ?? 'fix the problems listed on the left'}`);
   const run = await createRun(req.userId!, req.params.workflowId, { input: req.body?.input ?? {} });
   res.json({ run });
 }));

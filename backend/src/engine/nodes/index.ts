@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { WorkflowNode } from '../types';
-import { ExecContext, resolveTemplates } from '../context';
+import { ExecContext, resolveTemplates, unresolvedRefs } from '../context';
 import { evaluateCondition } from '../expr';
 import { safeFetch } from '../httpClient';
 
@@ -145,6 +145,9 @@ async function runHttp(node: WorkflowNode, ctx: ExecContext, svc: NodeServices):
   } else if (typeof body === 'string' && cfg.bodyType === 'json') {
     try { body = JSON.parse(body); } catch { /* send as string */ }
   }
+  const { credentialId: _cid, ...configForRefs } = node.config;
+  const missing = unresolvedRefs(configForRefs, ctx);
+  if (missing.length) svc.log('warn', `No data found for ${missing.map((m) => `{{${m}}}`).join(', ')} — it was sent as empty text. Check the spelling, or run the earlier step first.`);
   svc.log('info', `${(cfg.method || 'GET').toUpperCase()} ${urlForLog(url)}`);
   const res = await safeFetch({ url, method: cfg.method, headers, body, timeoutMs: node.timeoutMs });
   svc.log('info', `↳ ${res.status} ${res.statusText} (${res.durationMs}ms)`);

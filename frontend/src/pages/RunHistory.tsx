@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { STATUS_STYLE, triggerInfo } from '../constants';
+import NotFound from '../components/NotFound';
 
 interface RunRow {
   id: string; version: number; status: string; trigger: string; error: string | null;
@@ -19,14 +20,17 @@ export default function RunHistory() {
   const nav = useNavigate();
   const [name, setName] = useState('');
   const [runs, setRuns] = useState<RunRow[]>([]);
+  const [missing, setMissing] = useState(false);
 
   const load = () => api.get(`/runs?workflowId=${id}`).then((d) => setRuns(d.runs));
   useEffect(() => {
-    api.get(`/workflows/${id}`).then((d) => setName(d.workflow.name));
-    load();
-    const t = setInterval(load, 3000); // keep running/queued rows fresh
+    api.get(`/workflows/${id}`).then((d) => setName(d.workflow.name)).catch((e: any) => { if (e?.status === 404 || e?.status === 400) setMissing(true); });
+    load().catch(() => {});
+    const t = setInterval(() => { load().catch(() => {}); }, 3000); // keep running/queued rows fresh
     return () => clearInterval(t);
   }, [id]);
+
+  if (missing) return <NotFound what="workflow" />;
 
   return (
     <div className="max-w-5xl mx-auto p-6">

@@ -299,6 +299,27 @@ ok('schedule: one-time never fires twice',(await call('/runs?workflowId='+w.work
   ok('schedule: cron next run is 03:00 IST on 1 Jan (21:30 UTC the day before)',new Date(cron1.next_at).getUTCHours()===21&&new Date(cron1.next_at).getUTCMinutes()===30,new Date(cron1.next_at).toISOString());
 }
 
+// --- UX hardening: cron fields, schedule caps, empty-variable warning, malformed ids
+{
+  const t=await reg(); const w=(await mk(t,'ux',[T,N('m','http','msg',{method:'POST',url:U+'/mock/notify',bodyMode:'message',messageFormat:'other',message:'Hi {{steps.nothing.output.name}} done'})],[E('e','t','m')])).workflow;
+  const six=await call('/schedules/workflow/'+w.id,t,'POST',{cron:'* * * * * *',tz:'UTC'});
+  ok('schedule: 6-field (every second) cron refused',six.s===400&&/5 fields/.test(six.error||''),JSON.stringify(six));
+  const sp=await call('/schedules/workflow/'+w.id,t,'POST',{cron:'  */5   *  * * * ',tz:'UTC'});
+  ok('schedule: extra spaces in a 5-field cron are fine',sp.s===200,JSON.stringify(sp));
+  let last=200, made=1; for(let i=0;i<12&&last===200;i++){const r=await call('/schedules/workflow/'+w.id,t,'POST',{cron:'0 * * * *',tz:'UTC'});last=r.s;if(r.s===200)made++;}
+  ok('schedule: capped at 10 per workflow',last===400&&made===10,`made=${made} last=${last}`);
+  const run=(await call('/runs/workflow/'+w.id,t,'POST',{input:{}})).run; const done=await waitRun(t,run.id);
+  const lg=(await call('/runs/'+run.id+'/logs',t)).logs||[];
+  ok('run with an empty {{variable}} succeeds but warns',done.status==='success'&&lg.some(l=>l.level==='warn'&&/steps\.nothing\.output\.name/.test(l.message)),JSON.stringify(lg.map(l=>l.message)).slice(0,300));
+  const bad=await call('/workflows/not-a-uuid',t);
+  ok('malformed workflow id -> 404 (not 500)',bad.s===404,bad.s);
+  const bad2=await call('/runs/not-a-uuid',t);
+  ok('malformed run id -> 404 (not 500)',bad2.s===404,bad2.s);
+  const noUrl=await mk(t,'nourl',[T,N('h','http','no url',{method:'GET',url:''})],[E('e','t','h')]);
+  const rr=await call('/runs/workflow/'+noUrl.workflow.id,t,'POST',{input:{}});
+  ok('run refusal names the problem in plain words',rr.s===400&&/Can.t run yet:.*URL/.test(rr.error||''),JSON.stringify(rr));
+}
+
 // SSRF variants
 for (const [name,url] of [['metadata','http://169.254.169.254/latest/'],['decimal ip','http://2130706433:4000/api/health'.replace('2130706433','2852039166')],['ipv6 loopback','http://[::1]:4000/api/health'],['file scheme','file:///etc/passwd']]) {
   w=await mk(A,'ssrf-'+name,[T,N('h','http','H',{method:'GET',url})],[E('e1','t','h')]);

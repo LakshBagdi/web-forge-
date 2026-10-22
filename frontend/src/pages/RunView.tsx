@@ -5,6 +5,8 @@ import 'reactflow/dist/style.css';
 import { api, streamUrl } from '../api';
 import { nodeTypes, FlowNodeData } from '../flow/CustomNodes';
 import { NodeType, STATUS_STYLE, triggerInfo } from '../constants';
+import { explainError } from '../friendlyError';
+import NotFound from '../components/NotFound';
 import Panel from '../components/Panel';
 
 interface LogLine { id: number; nodeId: string | null; level: string; message: string; ts: string; }
@@ -54,6 +56,7 @@ function Inner() {
   const [status, setStatus] = useState('');
   const [wfId, setWfId] = useState('');
   const [trig, setTrig] = useState('');
+  const [missing, setMissing] = useState(false);
   const [sel, setSel] = useState<string | null>(null);
   const [onlyStep, setOnlyStep] = useState(false);
   const [logs, setLogs] = useState<LogLine[]>([]);
@@ -89,7 +92,10 @@ function Inner() {
         applyRun(r.run);
         addLogs(l.logs);
         if (TERMINAL.includes(r.run.status) && poll) { clearInterval(poll); poll = null; }
-      } catch { /* transient; next tick retries */ }
+      } catch (e: any) {
+        if (e?.status === 404 || e?.status === 400) { if (!cancelled) setMissing(true); if (poll) { clearInterval(poll); poll = null; } }
+        /* otherwise transient; next tick retries */
+      }
     };
 
     refresh();
@@ -121,6 +127,8 @@ function Inner() {
   const selState = sel ? state[sel] : null;
   const st = STATUS_STYLE[status] || STATUS_STYLE.pending;
 
+  if (missing) return <NotFound what="run" />;
+
   const retry = async () => {
     const { run } = await api.post(`/runs/${id}/retry`);
     nav(`/runs/${run.id}`);
@@ -141,6 +149,30 @@ function Inner() {
           {status === 'failed' && <button className="btn btn-primary" onClick={retry}>↻ Retry from failed</button>}
         </div>
       </div>
+      {(() => {
+        const list = (graph.nodes || []) as any[];
+        const total = list.length;
+        const okN = list.filter((n) => state[n.id]?.status === 'success').length;
+        const skipN = list.filter((n) => state[n.id]?.status === 'skipped').length;
+        const failed = list.find((n) => state[n.id]?.status === 'failed');
+        const nameOf = (n: any) => n.label || n.id;
+        if (status === 'success') return (
+          <div className="px-4 py-2 text-sm border-b border-emerald-500/30 bg-emerald-500/10 text-emerald-200" data-testid="run-summary">
+            ✓ It worked. {okN} of {total} step{total === 1 ? '' : 's'} ran{skipN ? `, ${skipN} skipped because their path was not taken (that is normal)` : ''}. Click any step to see what it returned.
+          </div>);
+        if (status === 'failed') {
+          const ex = failed ? explainError(state[failed.id]?.error) : null;
+          return (
+            <div className="px-4 py-2 text-sm border-b border-red-500/30 bg-red-500/10 text-red-100 space-y-0.5" data-testid="run-summary">
+              <div>✗ Stopped at “{failed ? nameOf(failed) : 'a step'}”. {ex ? ex.what : (failed ? state[failed.id]?.error : '')}</div>
+              {ex && <div className="text-red-200/80">What to do: {ex.fix}</div>}
+              <div className="text-red-200/60 text-xs">Click the failed step for details · fix it in <b>Edit workflow</b> · then press <b>↻ Retry from failed</b> (steps that worked are not repeated).</div>
+            </div>);
+        }
+        if (status === 'cancelled') return <div className="px-4 py-2 text-sm border-b border-edge bg-edge/40 text-slate-300" data-testid="run-summary">This run was stopped before it finished.</div>;
+        if (status) return <div className="px-4 py-2 text-sm border-b border-edge bg-sky-500/10 text-sky-200" data-testid="run-summary">⏳ Running… {okN} of {total} steps done.</div>;
+        return null;
+      })()}
       <div className="flex-1 flex min-h-0">
         <div className="flex-1">
           <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView
@@ -167,7 +199,10 @@ function Inner() {
                     {selState.branch ? ` · branch taken: ${selState.branch}` : ''}
                     {selState.startedAt && selState.finishedAt ? ` · ${new Date(selState.finishedAt).getTime() - new Date(selState.startedAt).getTime()} ms` : ''}
                   </div>
-                  {selState.error && <div><div className="text-red-400 font-semibold">Error</div><pre className="text-red-300 whitespace-pre-wrap">{selState.error}</pre></div>}
+                  {selState.error && (() => { const ex = explainError(selState.error); return (
+                    <div><div className="text-red-400 font-semibold">Error</div>
+                      {ex && <div className="text-red-200 mb-1">{ex.what} <span className="text-red-200/70">{ex.fix}</span></div>}
+                      <pre className="text-red-300 whitespace-pre-wrap">{selState.error}</pre></div>); })()}
                   {selState.output !== undefined && (
                     <div><div className="text-slate-400 font-semibold">Output</div>
                       <pre className="bg-ink rounded p-2 overflow-x-auto max-h-48">{JSON.stringify(selState.output, null, 2)}</pre>

@@ -1,21 +1,10 @@
-import { ExecContext, makeNow, resolveRef } from './context';
+import { ExecContext, makeNow, unresolvedRefs } from './context';
 import { WorkflowNode } from './types';
 import { executeNode, NodeServices } from './nodes';
 import { getCredentialDecrypted, updateCredentialData } from '../services/credentials';
 import { one } from '../db';
 
 const TESTABLE = ['http', 'transform', 'condition'];
-const TEMPLATE_RE = /\{\{\s*([^}]+?)\s*\}\}/g;
-
-/** {{refs}} in a node's config that currently resolve to nothing (so the user knows to run the workflow once first). */
-function unresolvedRefs(value: any, ctx: ExecContext, out = new Set<string>()): string[] {
-  if (typeof value === 'string') {
-    for (const m of value.matchAll(TEMPLATE_RE)) if (resolveRef(m[1], ctx) === undefined) out.add(m[1]);
-  } else if (Array.isArray(value)) value.forEach((v) => unresolvedRefs(v, ctx, out));
-  else if (value && typeof value === 'object') Object.values(value).forEach((v) => unresolvedRefs(v, ctx, out));
-  return [...out];
-}
-
 /**
  * Run ONE node on its own with the saved credentials, using the data from this workflow's most recent run
  * as the output of earlier steps. Nothing is saved: no run is created and Watch memory is untouched.

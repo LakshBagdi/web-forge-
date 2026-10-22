@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api';
+import { explainError } from '../friendlyError';
 
 /** "Try this step now": really runs just this one step (using data from your last run) and shows what came back. */
 export default function TestStep({ workflowId, node }: { workflowId?: string; node: { id: string; type: string; label?: string; config: any; timeoutMs?: number } }) {
@@ -36,7 +37,11 @@ export default function TestStep({ workflowId, node }: { workflowId?: string; no
           <div className={res.ok ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold'}>
             {res.ok ? '✓ It worked' : '✗ It failed'}{res.ok && out?.status ? ` · HTTP ${out.status}` : ''}{res.branch ? ` · branch: ${res.branch}` : ''}
           </div>
-          {res.error && <div className="text-red-300 whitespace-pre-wrap">{res.error}</div>}
+          {res.error && (() => { const ex = explainError(res.error); return (
+            <div className="text-red-300 whitespace-pre-wrap">
+              {ex && <div className="text-red-200 mb-1">{ex.what} <span className="text-red-200/70">{ex.fix}</span></div>}
+              <div className="text-red-400/80">{res.error}</div>
+            </div>); })()}
           {res.unresolved?.length > 0 && (
             <div className="text-amber-300">No data yet for {res.unresolved.map((u: string) => `{{${u}}}`).join(', ')} — press ▶ Run once so earlier steps have data (it was sent empty).</div>
           )}

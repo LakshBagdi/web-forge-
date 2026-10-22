@@ -24,6 +24,16 @@ export async function createSchedule(userId: string, workflowId: string, opts: {
   const tz = opts.tz || 'UTC';
   if (!validTimeZone(tz)) throw new HttpError(400, `Unknown timezone: ${tz}`);
   if (!!opts.cron === !!opts.runAt) throw new HttpError(400, 'Provide either a cron expression or a one-time run time');
+  if (opts.cron) {
+    const fields = opts.cron.trim().split(/\s+/);
+    if (fields.length !== 5) throw new HttpError(400, 'Use 5 fields: minute hour day month weekday (for example "*/5 * * * *"). Seconds are not supported; the fastest repeat is every minute.');
+    opts.cron = fields.join(' ');
+  }
+  // Keep a runaway or abusive account from piling up thousands of timers.
+  const perWf = await one<{ n: string }>('SELECT count(*) AS n FROM schedules WHERE user_id=$1 AND workflow_id=$2 AND enabled', [userId, workflowId]);
+  if (Number(perWf?.n) >= 10) throw new HttpError(400, 'A workflow can have at most 10 active schedules. Delete one you no longer need.');
+  const perUser = await one<{ n: string }>('SELECT count(*) AS n FROM schedules WHERE user_id=$1 AND enabled', [userId]);
+  if (Number(perUser?.n) >= 50) throw new HttpError(400, 'You have reached the limit of 50 active schedules. Delete some first.');
 
   if (opts.runAt) {
     const at = new Date(opts.runAt);

@@ -62,24 +62,26 @@ React + Vite + TypeScript + React Flow        Node + Express + TypeScript
 
 ---
 
-## 🚀 Local setup
+## 🚀 Local setup (2 commands)
 
-Prereqs: Node 20+, Postgres, Redis.
+Prereqs: Node 18+, Postgres and Redis running (Linux/WSL: `sudo service postgresql start` and `sudo service redis-server start`).
 
 ```bash
-# 1. Backend
-cd backend
-cp .env.example .env            # set DATABASE_URL, REDIS_URL, JWT_SECRET, CREDENTIAL_KEY
-npm install
-npm run dev                     # http://localhost:4000
-
-# 2. Frontend (new terminal)
-cd frontend
-npm install
-npm run dev                     # http://localhost:5173
+npm run setup     # once: installs packages, creates backend/.env with fresh secrets, checks Postgres + Redis
+npm run dev       # every time: starts backend (:4000) and frontend (:5173) together; Ctrl+C stops both
 ```
 
-Generate a credential key: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+Then open http://localhost:5173. Both commands explain in plain words how to fix anything that is missing
+(wrong Postgres password, Redis not running, port already in use).
+
+First-time Postgres login (only if `npm run setup` says it is needed):
+
+```bash
+sudo -u postgres psql -c "CREATE USER vs WITH PASSWORD 'vs' SUPERUSER;"
+sudo -u postgres psql -c "CREATE DATABASE flowforge OWNER vs;"
+```
+
+Manual start (two terminals) still works: `cd backend && npm run dev` and `cd frontend && npm run dev`.
 
 The backend ships a **mock API** at `/mock/*` so demo workflows run with no
 external services. In dev, `EGRESS_ALLOWLIST` permits localhost so workflows can

@@ -94,7 +94,7 @@ export function validateWorkflow(graph: WorkflowGraph): ValidationIssue[] {
   const map = nodeMap(graph);
 
   if (graph.nodes.length === 0) {
-    issues.push({ level: 'error', message: 'Workflow has no nodes' });
+    issues.push({ level: 'error', message: 'This workflow is empty — click a step on the left to add one' });
     return issues;
   }
 
@@ -122,10 +122,10 @@ export function validateWorkflow(graph: WorkflowGraph): ValidationIssue[] {
     const hasIn = graph.edges.some((e) => e.target === n.id);
     const hasOut = graph.edges.some((e) => e.source === n.id);
     if (n.type !== 'trigger' && !hasIn) {
-      issues.push({ level: 'error', nodeId: n.id, message: `Node "${n.label || n.id}" is not connected to any input` });
+      issues.push({ level: 'error', nodeId: n.id, message: `Step "${n.label || n.id}" isn't connected yet — drag from the dot on the right of the previous step to the dot on the left of this one` });
     }
     if (n.type === 'trigger' && !hasOut) {
-      issues.push({ level: 'warning', nodeId: n.id, message: 'Trigger has no outgoing steps' });
+      issues.push({ level: 'warning', nodeId: n.id, message: 'Start isn’t connected to anything yet — click a step on the left to add one' });
     }
 
     // Starter templates ship with PASTE_... placeholders. Refuse to run until they are replaced, so a
@@ -135,7 +135,7 @@ export function validateWorkflow(graph: WorkflowGraph): ValidationIssue[] {
 
     if (n.type === 'http') {
       if (!n.config?.url || typeof n.config.url !== 'string') {
-        issues.push({ level: 'error', nodeId: n.id, message: 'HTTP node is missing a URL' });
+        issues.push({ level: 'error', nodeId: n.id, message: `"${n.label || n.id}" needs a URL (the web address to call) — pick a Quick setup or type it in` });
       }
       const method0 = (n.config?.method || 'GET').toUpperCase();
       if (n.config?.bodyMode === 'message' && ['POST', 'PUT', 'PATCH'].includes(method0) && !String(n.config?.message ?? '').trim()) {
@@ -150,33 +150,33 @@ export function validateWorkflow(graph: WorkflowGraph): ValidationIssue[] {
       const hasExpr = typeof n.config?.expression === 'string' && n.config.expression.trim().length > 0;
       const hasStructured = n.config?.operator || n.config?.left !== undefined;
       if (!hasExpr && !hasStructured) {
-        issues.push({ level: 'error', nodeId: n.id, message: 'Condition node needs an expression or left/operator/right' });
+        issues.push({ level: 'error', nodeId: n.id, message: `"${n.label || n.id}" needs a question — fill in the left value, the operator and the right value` });
       }
       const branches = outgoing(graph, n.id).map((e) => e.sourceHandle);
       if (!branches.includes('true') && !branches.includes('false')) {
-        issues.push({ level: 'warning', nodeId: n.id, message: 'Condition has no true/false branch connected' });
+        issues.push({ level: 'warning', nodeId: n.id, message: `"${n.label || n.id}" has no green (yes) / red (no) path connected yet` });
       }
     }
     if (n.type === 'watch') {
       if (n.config?.value === undefined || String(n.config.value).trim() === '') {
-        issues.push({ level: 'error', nodeId: n.id, message: 'Watch node needs a value to watch, e.g. {{steps.http1.output.body.id}}' });
+        issues.push({ level: 'error', nodeId: n.id, message: `"${n.label || n.id}" needs a value to watch, e.g. {{steps.http1.output.body.id}} (click a chip under "Data from earlier steps")` });
       }
       const branches = outgoing(graph, n.id).map((e) => e.sourceHandle);
       if (!branches.includes('true') && !branches.includes('false')) {
-        issues.push({ level: 'warning', nodeId: n.id, message: 'Watch has no changed (green) / unchanged (red) branch connected' });
+        issues.push({ level: 'warning', nodeId: n.id, message: `"${n.label || n.id}" has no green (changed) / red (unchanged) path connected yet` });
       }
     }
     if (n.type === 'transform') {
       if (!n.config?.mapping && !n.config?.expression) {
-        issues.push({ level: 'warning', nodeId: n.id, message: 'Transform node has no mapping defined' });
+        issues.push({ level: 'warning', nodeId: n.id, message: `"${n.label || n.id}" has no fields yet — add at least one name = value row` });
       }
     }
     if (n.type === 'delay') {
       const ms = Number(n.config?.ms);
       if (!Number.isFinite(ms) || ms < 0) {
-        issues.push({ level: 'error', nodeId: n.id, message: 'Delay node needs a non-negative duration (ms)' });
+        issues.push({ level: 'error', nodeId: n.id, message: `"${n.label || n.id}" needs a wait time of 0 or more` });
       } else if (ms > 120_000) {
-        issues.push({ level: 'warning', nodeId: n.id, message: 'Delay waits at most 2 minutes. For longer waits use ⏰ Schedule → “Run once at a specific time”' });
+        issues.push({ level: 'warning', nodeId: n.id, message: `"${n.label || n.id}" waits at most 2 minutes. For longer waits use ⏰ Schedule → “Run once”` });
       }
     }
   }

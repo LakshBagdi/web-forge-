@@ -24,9 +24,11 @@ const STARTER = {
 export default function Workflows() {
   const [wfs, setWfs] = useState<WF[]>([]);
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loadErr, setLoadErr] = useState('');
   const nav = useNavigate();
 
-  const load = () => api.get('/workflows').then((d) => setWfs(d.workflows));
+  const load = () => api.get('/workflows').then((d) => { setWfs(d.workflows); setLoadErr(''); }).catch((e: any) => setLoadErr(e?.message || 'Could not load your workflows')).finally(() => setLoaded(true));
   useEffect(() => { load(); }, []);
 
   const create = async (withSample: boolean) => {
@@ -64,42 +66,58 @@ export default function Workflows() {
           <button className="btn btn-primary" disabled={busy} onClick={() => create(false)}>+ New workflow</button>
         </div>
       </div>
-      {(['real', 'demo'] as const).map((g) => (
-        <div className="mb-6" key={g}>
-          <div className="text-sm font-semibold text-slate-300 mb-2">
-            {g === 'real' ? 'Real services — paste your keys into the ⚙ Settings node' : 'Instant demos — run offline, no setup'}
-          </div>
-          <div className="grid md:grid-cols-3 gap-3">
-            {TEMPLATES.filter((t) => t.group === g).map((t) => (
-              <button key={t.key} disabled={busy} data-testid={`tpl-${t.key}`} onClick={() => fromTemplate(t.key)}
-                className="card p-3 text-left hover:border-accent transition">
-                <div className="font-semibold">{t.emoji} {t.name}</div>
-                <div className="text-xs text-slate-400 mt-1">{t.blurb}</div>
-                {t.needs && <div className="text-[11px] text-amber-300/90 mt-2">You need: {t.needs}</div>}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-      {wfs.length === 0 ? (
-        <div className="card p-10 text-center text-slate-400">
-          No workflows yet. Start with a <button className="text-accent" onClick={() => create(true)}>sample workflow</button> to see branching + API calls in action.
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {wfs.map((w) => (
-            <div key={w.id} className="card p-4 flex items-center gap-4 hover:border-accent transition cursor-pointer" onClick={() => nav(`/editor/${w.id}`)}>
-              <div className="flex-1">
-                <div className="font-semibold">{w.name}</div>
-                <div className="text-xs text-slate-400">{w.description || 'No description'} · v{w.active_version} · {w.run_count} run(s)</div>
-              </div>
-              <span className="text-xs text-slate-500">{new Date(w.updated_at).toLocaleString()}</span>
-              <button className="btn" onClick={(e) => { e.stopPropagation(); nav(`/workflows/${w.id}/runs`); }}>History</button>
-              <button className="btn btn-danger" onClick={(e) => { e.stopPropagation(); remove(w.id); }}>Delete</button>
+      {!loaded && <div className="text-slate-500 text-sm py-10 text-center">Loading your workflows…</div>}
+      {loadErr && <div className="card p-3 mb-4 text-sm text-red-300">{loadErr} <button className="underline ml-2" onClick={() => load()}>Try again</button></div>}
+      {loaded && wfs.length === 0 && (
+        <div className="grid md:grid-cols-3 gap-3 mb-6" data-testid="how-it-works">
+          {[['1', 'Pick a template', 'Try an instant demo first — no keys needed — or start a blank workflow.'],
+            ['2', 'Fill in the blanks', 'Click a step, type your message or paste your link. Steps connect themselves and changes save automatically.'],
+            ['3', 'Run it, then automate it', '▶ Run tests it now. ⏰ Schedule repeats it or runs it at an exact time; a webhook starts it when another app calls.']].map(([n, t, d]) => (
+            <div key={n} className="card p-3 flex gap-3">
+              <div className="w-7 h-7 shrink-0 rounded-full bg-accent/20 text-accent flex items-center justify-center font-bold">{n}</div>
+              <div><div className="font-semibold text-sm">{t}</div><div className="text-xs text-slate-400 mt-0.5">{d}</div></div>
             </div>
           ))}
         </div>
       )}
+      {loaded && wfs.length > 0 && (
+        <div className="mb-6">
+          <div className="text-sm font-semibold text-slate-300 mb-2">Your workflows</div>
+          <div className="grid gap-3">
+            {wfs.map((w) => (
+              <div key={w.id} className="card p-4 flex items-center gap-4 hover:border-accent transition cursor-pointer" onClick={() => nav(`/editor/${w.id}`)} data-testid="wf-row">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{w.name}</div>
+                  <div className="text-xs text-slate-400 truncate">{w.description || 'No description'} · {w.run_count} run(s)</div>
+                </div>
+                <span className="text-xs text-slate-500 hidden sm:block">Edited {new Date(w.updated_at).toLocaleString()}</span>
+                <button className="btn" onClick={(e) => { e.stopPropagation(); nav(`/workflows/${w.id}/runs`); }}>History</button>
+                <button className="btn btn-danger" onClick={(e) => { e.stopPropagation(); remove(w.id); }}>Delete</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {loaded && <details open={wfs.length === 0} className="mb-6">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-300 mb-2 select-none">＋ Start from a ready-made template</summary>
+        {(['demo', 'real'] as const).map((g) => (
+          <div className="mt-3" key={g}>
+            <div className="text-xs font-semibold text-slate-400 mb-2">
+              {g === 'real' ? 'Real services — you will paste your own keys/links into the ⚙ Settings step' : 'Instant demos — work right now, offline, no setup'}
+            </div>
+            <div className="grid md:grid-cols-3 gap-3">
+              {TEMPLATES.filter((t) => t.group === g).map((t) => (
+                <button key={t.key} disabled={busy} data-testid={`tpl-${t.key}`} onClick={() => fromTemplate(t.key)}
+                  className="card p-3 text-left hover:border-accent transition">
+                  <div className="font-semibold">{t.emoji} {t.name}</div>
+                  <div className="text-xs text-slate-400 mt-1">{t.blurb}</div>
+                  {t.needs && <div className="text-[11px] text-amber-300/90 mt-2">You need: {t.needs}</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </details>}
     </div>
   );
 }

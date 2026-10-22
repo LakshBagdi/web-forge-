@@ -1,0 +1,12 @@
+{
+  "name": "flowforge",
+  "private": true,
+  "version": "1.0.0",
+  "description": "FlowForge — visual API workflow automation",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "node scripts/dev.mjs",
+    "test": "npm --prefix backend run test:api"
+  },
+  "engines": { "node": ">=18" }
+}

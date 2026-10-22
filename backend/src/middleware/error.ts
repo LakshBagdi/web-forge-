@@ -21,6 +21,8 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   if (err instanceof HttpError) {
     return res.status(err.status).json({ error: err.message });
   }
+  // e.g. a malformed id in the URL (Postgres: invalid input syntax for type uuid) is simply "not found"
+  if ((err as any)?.code === '22P02') return res.status(404).json({ error: 'Not found' });
   console.error('[unhandled]', err);
   res.status(500).json({ error: 'Internal server error' });
 }

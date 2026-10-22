@@ -65,3 +65,13 @@ export function resolveTemplates(value: any, ctx: ExecContext): any {
   }
   return value;
 }
+
+
+/** {{refs}} inside any value that currently resolve to nothing (typos, steps that haven't run yet). */
+export function unresolvedRefs(value: any, ctx: ExecContext, out = new Set<string>()): string[] {
+  if (typeof value === 'string') {
+    for (const m of value.matchAll(TEMPLATE_RE)) if (resolveRef(m[1], ctx) === undefined) out.add(m[1]);
+  } else if (Array.isArray(value)) value.forEach((v) => unresolvedRefs(v, ctx, out));
+  else if (value && typeof value === 'object') Object.values(value).forEach((v) => unresolvedRefs(v, ctx, out));
+  return [...out];
+}

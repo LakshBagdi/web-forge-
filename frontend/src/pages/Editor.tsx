@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import ReactFlow, {
   Background, Controls, MiniMap, addEdge, applyNodeChanges, applyEdgeChanges,
-  Node, Edge, Connection, NodeChange, EdgeChange, ReactFlowProvider, MarkerType,
+  Node, Edge, Connection, NodeChange, EdgeChange, ReactFlowProvider, MarkerType, useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { api } from '../api';
@@ -11,6 +11,7 @@ import Inspector from '../components/Inspector';
 import VersionsPanel from '../components/VersionsPanel';
 import SchedulePanel from '../components/SchedulePanel';
 import Panel from '../components/Panel';
+import NotFound from '../components/NotFound';
 import { NODE_DEFS, NodeType } from '../constants';
 
 let idSeq = 1;
@@ -54,7 +55,16 @@ function EditorInner() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
   const [panel, setPanel] = useState<null | 'versions' | 'schedule'>(null);
+  const rf = useReactFlow();
   const dirty = useRef(false);
+  const tickRef = useRef(0);
+  const nodesRef = useRef<Node<FlowNodeData>[]>([]);
+  const [loadError, setLoadError] = useState<{ status?: number; message: string } | null>(null);
+  const [saveState, setSaveState] = useState<'saved' | 'dirty' | 'saving' | 'error'>('saved');
+  const [dirtyTick, setDirtyTick] = useState(0);
+  const saveChain = useRef<Promise<void>>(Promise.resolve());
+  // Stable: every edit goes through here so the header can show "Saving… / Saved" and autosave can kick in.
+  const markDirty = useCallback(() => { dirty.current = true; tickRef.current += 1; setSaveState('dirty'); setDirtyTick((t) => t + 1); }, []);
   // JSON handed to the run as {{input.*}}; remembered per workflow in this browser (optional convenience).
   const inputKey = `ff_input_${id}`;
   const [runInput, setRunInput] = useState('{}');
@@ -76,8 +86,8 @@ function EditorInner() {
     setNodes(f.nodes); setEdges(f.edges);
     setIssues(d.validation || []);
     setSelected(null);
-    dirty.current = false;
-  }), [id]);
+    dirty.current = false; setSaveState('saved'); setLoadError(null);
+  }).catch((e: any) => setLoadError({ status: e?.status, message: e?.message || 'Could not load' })), [id]);
   useEffect(() => { load(); }, [load]);
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
@@ -89,9 +99,15 @@ function EditorInner() {
       const keep = c.filter((ch) => !(ch.type === 'remove' && (n.find((x) => x.id === ch.id)?.data as any)?.nodeType === 'trigger'));
       return applyNodeChanges(keep, n);
     });
-    dirty.current = true;
-  }, []);
-  const onEdgesChange = useCallback((c: EdgeChange[]) => { setEdges((e) => applyEdgeChanges(c, e)); dirty.current = true; }, []);
+    // clicking/selecting a step or the canvas measuring its size is not an edit
+    const moved = (ch: NodeChange) => ch.type === 'position' && ch.dragging === false && !!ch.position &&
+      (() => { const old = nodesRef.current.find((x) => x.id === ch.id); return !old || old.position.x !== ch.position!.x || old.position.y !== ch.position!.y; })();
+    if (c.some((ch) => ch.type === 'remove' || ch.type === 'add' || ch.type === 'reset' || moved(ch))) markDirty();
+  }, [markDirty]);
+  const onEdgesChange = useCallback((c: EdgeChange[]) => {
+    setEdges((e) => applyEdgeChanges(c, e));
+    if (c.some((ch) => ch.type === 'remove' || ch.type === 'add' || ch.type === 'reset')) markDirty();
+  }, [markDirty]);
   const onConnect = useCallback((c: Connection) => {
     setEdges((e) => addEdge({
       ...c, id: newId('e'),
@@ -99,8 +115,8 @@ function EditorInner() {
       label: c.sourceHandle || undefined,
       style: c.sourceHandle === 'true' ? { stroke: '#10b981' } : c.sourceHandle === 'false' ? { stroke: '#ef4444' } : undefined,
     }, e));
-    dirty.current = true;
-  }, []);
+    markDirty();
+  }, [markDirty]);
 
   // Readable, unique ids (http1, http2, condition1...) because users type them in {{steps.<id>...}}.
   const nextNodeId = (type: NodeType) => {
@@ -110,40 +126,119 @@ function EditorInner() {
     return `${type}${i}`;
   };
 
+  // Adding a step joins it to the chain automatically (after the selected step, else after the last one),
+  // places it to the right and scrolls it into view, so beginners never have to wire arrows by hand.
   const addNode = (type: NodeType) => {
     const nid = nextNodeId(type);
+    const hasOut = new Set(edges.map((e) => e.source));
+    let src: Node<FlowNodeData> | undefined = nodes.find((n) => n.id === selected);
+    if (!src) {
+      const leaves = nodes.filter((n) => !hasOut.has(n.id)).sort((a, b) => b.position.x - a.position.x);
+      src = leaves[0] || nodes.find((n) => (n.data as any).nodeType === 'trigger');
+    }
+    const srcType = src ? ((src.data as any).nodeType as NodeType) : null;
+    const branching = srcType === 'condition' || srcType === 'watch';
+    let handle: string | null = null;
+    if (src && branching) {
+      const used = new Set(edges.filter((e) => e.source === src!.id).map((e) => e.sourceHandle));
+      handle = !used.has('true') ? 'true' : !used.has('false') ? 'false' : null;
+    }
+    let pos = src ? { x: src.position.x + 400, y: src.position.y + (handle === 'false' ? 130 : handle === 'true' ? -10 : 0) } : { x: 200, y: 150 };
+    let guard = 0;
+    while (guard++ < 20 && nodes.some((n) => Math.abs(n.position.x - pos.x) < 320 && Math.abs(n.position.y - pos.y) < 100)) pos = { ...pos, y: pos.y + 130 };
     setNodes((n) => [...n, {
-      id: nid, type, position: { x: 200 + Math.random() * 300, y: 120 + Math.random() * 200 },
+      id: nid, type, position: pos,
       data: { label: NODE_DEFS[type].label, nodeType: type, config: { ...NODE_DEFS[type].defaultConfig } } as any,
     }]);
+    if (src && !(branching && handle === null)) {
+      const from = src.id;
+      setEdges((es) => addEdge({
+        id: newId('e'), source: from, target: nid, sourceHandle: handle,
+        markerEnd: { type: MarkerType.ArrowClosed }, label: handle || undefined,
+        style: handle === 'true' ? { stroke: '#10b981' } : handle === 'false' ? { stroke: '#ef4444' } : undefined,
+      }, es));
+    }
     setSelected(nid);
-    dirty.current = true;
+    markDirty();
+    setTimeout(() => { try { rf.fitView({ padding: 0.35, maxZoom: 1, duration: 300 }); } catch { /* not ready */ } }, 60);
   };
 
   const patchSelected = (patch: any) => {
     setNodes((ns) => ns.map((n) => n.id === selected ? { ...n, data: { ...n.data, ...patch } } : n));
-    dirty.current = true;
+    markDirty();
   };
   const deleteSelected = () => {
     setNodes((ns) => ns.filter((n) => n.id !== selected));
     setEdges((es) => es.filter((e) => e.source !== selected && e.target !== selected));
     setSelected(null);
+    markDirty();
   };
 
-  const save = async (newVersion: boolean) => {
-    setSaving(true);
-    try {
-      const graph = toGraph(nodes, edges);
-      const d = await api.put(`/workflows/${id}`, { name, graph, newVersion, note: newVersion ? `Snapshot ${new Date().toLocaleTimeString()}` : '' });
-      setIssues(d.validation || []);
-      dirty.current = false;
-      flash(newVersion ? 'Saved as new version' : 'Saved');
-    } catch (e: any) { flash(e.message); } finally { setSaving(false); }
+  // Saves are queued one after another so autosave, Save and Run can never overwrite each other.
+  const save = (newVersion: boolean, silent = false): Promise<boolean> => {
+    const job = saveChain.current.then(async () => {
+      const startTick = tickRef.current;
+      setSaving(true); setSaveState('saving');
+      try {
+        const graph = toGraph(nodes, edges);
+        const d = await api.put(`/workflows/${id}`, { name, graph, newVersion, note: newVersion ? `Snapshot ${new Date().toLocaleTimeString()}` : '' });
+        setIssues(d.validation || []);
+        if (tickRef.current === startTick) { dirty.current = false; setSaveState('saved'); } else setSaveState('dirty');
+        if (!silent) flash(newVersion ? 'Saved as a new version' : 'Saved');
+        return true;
+      } catch (e: any) {
+        setSaveState('error');
+        flash(`Could not save: ${e.message}`);
+        return false;
+      } finally { setSaving(false); }
+    });
+    saveChain.current = job.then(() => undefined, () => undefined);
+    return job;
+  };
+
+  nodesRef.current = nodes;
+
+  // Live check (no saving): the left panel's "Finish setup / Needs fixing" list follows every edit within a blink.
+  useEffect(() => {
+    if (dirtyTick === 0) return;
+    const t = setTimeout(() => {
+      api.post(`/workflows/${id}/validate`, { graph: toGraph(nodes, edges) }).then((d) => setIssues(d.validation || [])).catch(() => { /* offline: the save will report it */ });
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirtyTick]);
+
+  // Autosave 1.5s after the last edit, so the saved copy (which schedules and webhooks run) is always current.
+  useEffect(() => {
+    if (dirtyTick === 0) return;
+    const t = setTimeout(() => { save(false, true); }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirtyTick]);
+
+  // Leaving the editor within the autosave delay must not lose the last edit: flush it on the way out.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(() => () => { if (dirty.current) saveRef.current(false, true); }, []);
+
+  // Warn before closing the tab with edits that are not saved yet.
+  useEffect(() => {
+    const h = (e: BeforeUnloadEvent) => { if (dirty.current) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, []);
+
+  // Links that leave the editor first wait for any pending edit to be saved, so the next page never shows stale data.
+  const leave = (to: string) => async (e: React.MouseEvent) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    if (dirty.current) await save(false, true);
+    nav(to);
   };
 
   const run = async () => {
     if (inputError) { setShowInput(true); flash(`Run input: ${inputError}`); return; }
-    await save(false);
+    if (!(await save(false, true))) return;
     try {
       const { run } = await api.post(`/runs/workflow/${id}`, { input: JSON.parse(runInput || '{}') });
       nav(`/runs/${run.id}`);
@@ -151,7 +246,7 @@ function EditorInner() {
   };
 
   const duplicate = async () => {
-    await save(false); // copy what's on screen, including unsaved edits
+    if (!(await save(false, true))) return; // copy what's on screen, including unsaved edits
     const { workflow } = await api.post(`/workflows/${id}/duplicate`);
     nav(`/editor/${workflow.id}`);
   };
@@ -180,16 +275,24 @@ function EditorInner() {
   const setupIssues = errors.filter((i) => /^Fill in PASTE_/.test(i.message));
   const otherErrors = errors.filter((i) => !/^Fill in PASTE_/.test(i.message));
 
+  if (loadError) {
+    return loadError.status === 404 || loadError.status === 400
+      ? <NotFound what="workflow" />
+      : <div className="max-w-md mx-auto mt-24 card p-6 text-center space-y-3"><div className="font-semibold">Could not open this workflow</div><div className="text-sm text-slate-400">{loadError.message}</div><button className="btn btn-primary" onClick={() => { setLoadError(null); load(); }}>Try again</button></div>;
+  }
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-3 px-4 h-14 border-b border-edge bg-panel">
-        <Link to="/" className="btn">← Back</Link>
-        <input className="input max-w-xs" value={name} onChange={(e) => { setName(e.target.value); dirty.current = true; }} />
+        <Link to="/" className="btn" onClick={leave('/')}>← Back</Link>
+        <input className="input max-w-xs" value={name} onChange={(e) => { setName(e.target.value); markDirty(); }} />
         {otherErrors.length > 0 && <span className="badge bg-red-500/20 text-red-300">{otherErrors.length} error(s)</span>}
         {setupIssues.length > 0 && <span className="badge bg-amber-500/20 text-amber-300" title="Open the ⚙ Settings step and fill in the PASTE_ values">⚙ Setup needed</span>}
-        {dirty.current && <span className="text-xs text-amber-400">unsaved</span>}
+        <span className={`text-xs whitespace-nowrap ${saveState === 'error' ? 'text-red-400' : saveState === 'saved' ? 'text-slate-500' : 'text-amber-400'}`} data-testid="save-state" aria-live="polite">
+          {saveState === 'saved' ? '✓ All changes saved' : saveState === 'saving' ? 'Saving…' : saveState === 'error' ? '⚠ Not saved — press Save' : 'Unsaved changes…'}
+        </span>
         <div className="ml-auto flex gap-2">
-          <Link to={`/workflows/${id}/runs`} className="btn">Run history</Link>
+          <Link to={`/workflows/${id}/runs`} className="btn" onClick={leave(`/workflows/${id}/runs`)}>Run history</Link>
           <button className="btn" onClick={() => setPanel(panel === 'schedule' ? null : 'schedule')}>⏰ Schedule</button>
           <button className="btn" onClick={() => setPanel(panel === 'versions' ? null : 'versions')}>🕘 Versions</button>
           <button className="btn" onClick={duplicate}>Duplicate</button>
@@ -259,12 +362,19 @@ function EditorInner() {
             onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
             onNodeClick={(_, n) => setSelected(n.id)}
             onPaneClick={() => setSelected(null)}
-            fitView proOptions={{ hideAttribution: true }}
+            fitView fitViewOptions={{ maxZoom: 1, padding: 0.4 }} minZoom={0.2} maxZoom={1.6} proOptions={{ hideAttribution: true }}
           >
             <Background color="#1e2636" gap={18} />
             <Controls />
-            <MiniMap pannable zoomable maskColor="#0b0e14cc" nodeColor={(n) => NODE_DEFS[(n.data as any).nodeType as NodeType]?.color || '#888'} />
+            <MiniMap pannable zoomable maskColor="#0b0e14cc" style={{ background: '#111826' }} nodeColor={(n) => NODE_DEFS[(n.data as any).nodeType as NodeType]?.color || '#888'} />
           </ReactFlow>
+          {nodes.length <= 1 && (
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 w-[min(520px,90%)] card p-4 text-sm pointer-events-none" data-testid="empty-hint">
+              <div className="font-semibold mb-1">👋 Start building</div>
+              <div className="text-slate-300">Click a step in the <b>left bar</b> (try <b>HTTP Request</b>). It joins the chain automatically — then fill it in on the right and press <b>▶ Run</b>.</div>
+              <div className="text-slate-500 text-xs mt-1">Changes save by themselves. Want it ready-made? Go back and pick a template.</div>
+            </div>
+          )}
           {toast && <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-edge px-4 py-2 rounded-md text-sm z-20">{toast}</div>}
           {panel && (
             <div className="absolute top-0 right-0 bottom-0 w-80 bg-panel border-l border-edge z-10 overflow-y-auto shadow-2xl">
