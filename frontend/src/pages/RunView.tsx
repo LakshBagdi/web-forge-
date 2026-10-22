@@ -224,11 +224,11 @@ function Inner() {
           <div ref={logRef} className="flex-1 overflow-y-auto p-3 space-y-1 font-mono text-xs">
             {logs.filter((l) => !onlyStep || !sel || l.nodeId === sel).map((l) => (
               <div key={l.id} className="flex gap-2">
-                <span className="text-slate-600">{new Date(l.ts).toLocaleTimeString()}</span>
-                <span className={
+                <span className="text-slate-600 shrink-0">{new Date(l.ts).toLocaleTimeString()}</span>
+                <span className={`min-w-0 break-all ${
                   l.level === 'error' ? 'text-red-400' : l.level === 'warn' ? 'text-amber-400'
                   : l.level === 'debug' ? 'text-slate-500' : 'text-slate-300'
-                }>{l.nodeId ? `[${l.nodeId}] ` : ''}{l.message}</span>
+                }`}>{l.nodeId ? `[${l.nodeId}] ` : ''}{l.message}</span>
               </div>
             ))}
             {logs.length === 0 && <div className="text-slate-500">Waiting for logs…</div>}

@@ -71,7 +71,7 @@ export default function Workflows() {
       {!loaded && <div className="text-slate-500 text-sm py-10 text-center">Loading your workflows…</div>}
       {loadErr && <div className="card p-3 mb-4 text-sm text-red-300">{loadErr} <button className="underline ml-2" onClick={() => load()}>Try again</button></div>}
       {loaded && wfs.length === 0 && (
-        <div className="grid md:grid-cols-3 gap-3 mb-6" data-testid="how-it-works">
+        <div className="grid grid-cols-[minmax(0,1fr)] md:grid-cols-3 gap-3 mb-6" data-testid="how-it-works">
           {[['1', 'Pick a template', 'Try an instant demo first — no keys needed — or start a blank workflow.'],
             ['2', 'Fill in the blanks', 'Click a step, type your message or paste your link. Steps connect themselves and changes save automatically.'],
             ['3', 'Run it, then automate it', '▶ Run tests it now. ⏰ Schedule repeats it or runs it at an exact time; a webhook starts it when another app calls.']].map(([n, t, d]) => (
@@ -89,7 +89,7 @@ export default function Workflows() {
             <div className="text-xs font-semibold text-slate-400 mb-2">
               {g === 'real' ? 'Real services — you will paste your own keys/links into the ⚙ Settings step' : 'Instant demos — work right now, offline, no setup'}
             </div>
-            <div className="grid md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-[minmax(0,1fr)] md:grid-cols-3 gap-3">
               {TEMPLATES.filter((t) => t.group === g).map((t) => (
                 <button key={t.key} disabled={busy} data-testid={`tpl-${t.key}`} onClick={() => fromTemplate(t.key)}
                   className="card p-3 text-left hover:border-accent transition">
@@ -105,7 +105,7 @@ export default function Workflows() {
       {loaded && wfs.length > 0 && (
         <div className="mb-6" id="your-workflows">
           <div className="text-sm font-semibold text-slate-300 mb-2">Your workflows</div>
-          <div className="grid gap-3">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
             {wfs.map((w) => (
               <div key={w.id} className="card p-4 flex items-center gap-4 hover:border-accent transition cursor-pointer" onClick={() => nav(`/editor/${w.id}`)} data-testid="wf-row">
                 <div className="flex-1 min-w-0">

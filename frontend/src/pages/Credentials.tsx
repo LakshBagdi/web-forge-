@@ -75,7 +75,7 @@ export default function Credentials() {
             <div className="flex gap-1">Fill token URL for: <button className="text-accent" onClick={() => setFields({ ...fields, ...PRESETS.google })}>Google</button> · <button className="text-accent" onClick={() => setFields({ ...fields, ...PRESETS.x })}>X</button></div>
           </div>
         )}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 [&>*]:min-w-0">
           {fieldSpec[type].map((f) => (
             <div key={f}><label className="label">{FIELD_LABEL[f] || f}{f === 'client_auth' ? ' (body or basic — X needs basic)' : f === 'scope' ? ' (optional)' : ''}</label>
               <input className="input" type={SECRET.includes(f) ? 'password' : 'text'} autoComplete="off" value={fields[f] ?? ''} onChange={(e) => setFields({ ...fields, [f]: e.target.value })} />
@@ -86,10 +86,10 @@ export default function Credentials() {
         <button className="btn btn-primary" disabled={!name} onClick={create}>Save credential</button>
       </div>
 
-      <div className="grid gap-2">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
         {creds.map((c) => (
           <div key={c.id} className="card p-3 flex items-center gap-3">
-            <span className="font-semibold">{c.name}</span>
+            <span className="font-semibold truncate min-w-0">{c.name}</span>
             <span className="badge bg-edge text-slate-300">{TYPE_LABEL[c.type]?.split(' —')[0] || c.type}</span>
             <span className="ml-auto text-xs text-slate-500">{new Date(c.created_at).toLocaleDateString()}</span>
             <button className="btn btn-danger" onClick={() => remove(c.id)}>Delete</button>
