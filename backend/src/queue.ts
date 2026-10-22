@@ -6,7 +6,11 @@ import { appendLog, setRunStatus } from './services/runStore';
 
 export const connection = new IORedis(config.redisUrl, { maxRetriesPerRequest: null });
 
+// Without these listeners a Redis hiccup (e.g. the free Redis restarting) would crash the whole server.
+connection.on('error', (e) => console.warn('[redis]', e?.message));
+
 export const runQueue = new Queue('flowforge-runs', { connection });
+runQueue.on('error', (e) => console.warn('[queue]', e?.message));
 
 export interface RunJob {
   runId: string;
@@ -77,8 +81,10 @@ export function startWorker() {
     // maxStalledCount 0: never silently re-run a stalled job (it could repeat side effects)
     { connection, concurrency: config.runConcurrency, maxStalledCount: 0 },
   );
+  worker.on('error', (e) => console.warn('[worker]', e?.message));
   worker.on('failed', (job, err) => console.error(`[worker] job ${job?.id} failed:`, err?.message));
   return worker;
 }
 
 export const queueEvents = new QueueEvents('flowforge-runs', { connection });
+queueEvents.on('error', (e) => console.warn('[queue-events]', e?.message));

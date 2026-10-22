@@ -17,6 +17,10 @@ import { mockRouter } from './routes/mock';
 import { hooksRouter } from './routes/hooks';
 import { restoreSchedules } from './services/schedules';
 
+// A stray failed promise must never take the whole server down.
+process.on('unhandledRejection', (e: any) => console.error('[unhandledRejection]', e?.message || e));
+process.on('uncaughtException', (e: any) => console.error('[uncaughtException]', e?.message || e));
+
 async function main() {
   await migrate();
   startWorker();
@@ -66,6 +70,15 @@ async function main() {
   app.listen(config.port, () => {
     console.log(`FlowForge API on :${config.port} (env=${config.isProd ? 'prod' : 'dev'})`);
   });
+
+  // Free Redis can be wiped while we keep running: re-register every schedule from the database now and then (idempotent).
+  setInterval(() => { restoreSchedules().catch((e) => console.warn('schedule re-sync failed:', e?.message)); }, 5 * 60_000).unref();
+
+  // On Render, visit our own public address every 10 minutes so the free instance doesn't go to sleep (backup for the uptime pinger).
+  const selfUrl = process.env.RENDER_EXTERNAL_URL;
+  if (selfUrl && process.env.KEEP_AWAKE !== '0') {
+    setInterval(() => { fetch(`${selfUrl}/api/health`).catch(() => {}); }, 10 * 60_000).unref();
+  }
 }
 
 main().catch((err) => {

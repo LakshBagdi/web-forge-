@@ -33,6 +33,18 @@ mockRouter.get('/flaky', (req, res) => {
   res.json({ ok: true, succeededOnAttempt: count });
 });
 
+// Pretends to be a service with a rate limit: answers 429 "slow down" (with Retry-After: 1) the first `limitTimes` calls, then works.
+const limited = new Map<string, number>();
+mockRouter.get('/rate-limited', (req, res) => {
+  const key = String(req.query.key || 'default');
+  const limitTimes = Number(req.query.limitTimes ?? 1);
+  const count = (limited.get(key) ?? 0) + 1;
+  limited.set(key, count);
+  if (count <= limitTimes) { res.set('Retry-After', '1'); return res.status(429).json({ error: 'Too many requests', attempt: count }); }
+  limited.delete(key);
+  res.json({ ok: true, succeededOnCall: count });
+});
+
 // Always 500 — demonstrates failure handling and the retry-from-failed feature.
 // Slow endpoint (capped at 20s): demonstrates per-step timeouts and run cancellation.
 mockRouter.get('/slow', (req, res) => {

@@ -22,7 +22,7 @@ export function explainError(raw: string | undefined | null): { what: string; fi
   if (code === '403') return { what: 'The service says you are not allowed to do this (403).', fix: 'Your key/app is missing permission. For X: set permissions to Read and write and re-create the token. For Google: enable the Calendar API and re-authorize.' };
   if (code === '404') return { what: 'The service says that address does not exist (404).', fix: 'Check the URL for typos. If it is a Discord or Slack link, the webhook was probably deleted — create a new one and paste its URL.' };
   if (code === '400' || code === '422') return { what: `The service did not understand what was sent (${code}).`, fix: 'Check the message or fields on this step, and that required values are filled in. Open the step’s Output/log to see what the service said.' };
-  if (code === '429') return { what: 'Too many requests — the service asked you to slow down (429).', fix: 'Run less often (use a longer schedule) or raise “Backoff” and “Max attempts” under Reliability.' };
+  if (code === '429') return { what: 'The service said “too many requests” (429) — you hit its per-minute or daily limit. FlowForge already waited and retried on its own.', fix: 'Run less often (a longer schedule, e.g. every 15 minutes), or wait and press ↻ Retry from failed. Daily limits reset on the service’s clock; check your quota/plan with that service.' };
   if (code && code.startsWith('5')) return { what: `The other service had a problem (${code}).`, fix: 'It is not your mistake. Press ↻ Retry from failed in a minute, or set “Max attempts” to 3 on the step.' };
   if (has(/Cancelled/i)) return { what: 'You stopped this run.', fix: 'Press Run again whenever you are ready.' };
   return null;

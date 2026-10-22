@@ -123,7 +123,8 @@ async function runNodeWithRetry(
   owner: { workflowId: string; userId: string },
 ): Promise<NodeRunState> {
   // Hard limits enforced server-side: the UI input is not a security boundary.
-  const maxAttempts = Math.min(10, Math.max(1, Math.floor(Number(node.retry?.maxAttempts ?? 1)) || 1));
+  let maxAttempts = Math.min(10, Math.max(1, Math.floor(Number(node.retry?.maxAttempts ?? 1)) || 1));
+  let autoRetries = 0; // extra tries we add ourselves when a service says "slow down" (429) — see below
   const backoff = Math.min(60_000, Math.max(0, Number(node.retry?.backoffMs ?? 500) || 0));
   // A Delay node legitimately waits longer than the default step timeout, so size its timeout to the wait.
   const defaultTimeout = node.type === 'delay'
@@ -172,9 +173,22 @@ async function runNodeWithRetry(
       clearTimeout(timer);
       controller.abort();
       lastErr = err?.message || String(err);
+      const status: number | undefined = err?.response?.status;
+      const isGet = String(node.config?.method || 'GET').toUpperCase() === 'GET';
+      // Rate limits: the service rejected the call (nothing was done), so waiting and trying again is always safe.
+      // Temporary server errors (502/503/504) are only auto-retried for GET, so a POST can never be sent twice.
+      const slowDown = status === 429;
+      const autoOk = node.type === 'http' && autoRetries < 2 && (slowDown || (isGet && (status === 502 || status === 503 || status === 504)));
+      if (slowDown) lastErr += ' — this service limits how often it can be called (a per-minute or daily limit). Wait a bit, run less often, or check your plan/quota with that service.';
       await appendLog(runId, node.id, 'warn', `Attempt ${attempt}/${maxAttempts} failed: ${lastErr}`);
+      if (autoOk && attempt === maxAttempts) { maxAttempts += 1; autoRetries += 1; }
       if (attempt < maxAttempts) {
-        const wait = Math.min(backoff * 2 ** (attempt - 1), 10_000);
+        let wait = Math.min(backoff * 2 ** (attempt - 1), 10_000);
+        if (autoOk && attempt >= 1) {
+          const ra = Number(err?.response?.headers?.['retry-after']);
+          wait = Math.min(Math.max(Number.isFinite(ra) && ra > 0 ? ra * 1000 : 0, slowDown ? 2_000 : 1_000, wait), 20_000);
+          await appendLog(runId, node.id, 'info', `The other service asked us to slow down — waiting ${Math.round(wait / 1000)}s, then trying again automatically.`);
+        }
         await appendLog(runId, node.id, 'debug', `Retrying in ${wait}ms`);
         await sleep(wait);
       }

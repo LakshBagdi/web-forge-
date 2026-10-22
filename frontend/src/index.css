@@ -4,6 +4,8 @@
 
 @layer base {
   html { color-scheme: dark; }
+  /* the page itself must never slide sideways (wide things scroll inside their own box) */
+  body { overflow-x: hidden; }
   html, body, #root { height: 100%; }
 
   /* Chrome autofill paints inputs light blue/white, making our light text unreadable.

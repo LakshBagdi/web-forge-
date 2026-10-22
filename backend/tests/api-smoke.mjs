@@ -320,6 +320,19 @@ ok('schedule: one-time never fires twice',(await call('/runs?workflowId='+w.work
   ok('run refusal names the problem in plain words',rr.s===400&&/Can.t run yet:.*URL/.test(rr.error||''),JSON.stringify(rr));
 }
 
+// Rate limits (429): FlowForge waits (honouring Retry-After) and retries on its own, even with no retry settings
+{
+  const t=await reg(); const k='rl'+Date.now();
+  const w1=(await mk(t,'rl-ok',[T,N('h','http','Limited API',{method:'GET',url:U+'/mock/rate-limited',query:{key:k,limitTimes:'2'}})],[E('e','t','h')])).workflow;
+  const r1=(await call('/runs/workflow/'+w1.id,t,'POST',{input:{}})).run; const d1=await waitRun(t,r1.id);
+  const n1=(await call('/runs/'+r1.id,t)).run?.node_states?.h||{};
+  ok('429 twice -> run still succeeds by itself (auto wait + retry)',d1.status==='success',d1.status+' '+d1.error+' '+JSON.stringify(((await call('/runs/'+r1.id+'/logs',t)).logs||[]).map(l=>l.message)).slice(0,600));
+  const w2=(await mk(t,'rl-fail',[T,N('h','http','Limited API',{method:'GET',url:U+'/mock/rate-limited',query:{key:k+'b',limitTimes:'9'}})],[E('e','t','h')])).workflow;
+  const r2=(await call('/runs/workflow/'+w2.id,t,'POST',{input:{}})).run; const d2=await waitRun(t,r2.id,60000);
+  const lg2=(await call('/runs/'+r2.id+'/logs',t)).logs||[];
+  ok('endless 429 -> fails after the automatic tries, with a plain explanation',d2.status==='failed'&&lg2.some(l=>/limits how often/.test(l.message)),JSON.stringify(lg2.map(l=>l.message)).slice(-300));
+}
+
 // SSRF variants
 for (const [name,url] of [['metadata','http://169.254.169.254/latest/'],['decimal ip','http://2130706433:4000/api/health'.replace('2130706433','2852039166')],['ipv6 loopback','http://[::1]:4000/api/health'],['file scheme','file:///etc/passwd']]) {
   w=await mk(A,'ssrf-'+name,[T,N('h','http','H',{method:'GET',url})],[E('e1','t','h')]);

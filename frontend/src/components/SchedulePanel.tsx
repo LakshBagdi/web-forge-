@@ -99,6 +99,16 @@ export default function SchedulePanel({ workflowId, onClose }: { workflowId: str
           <label className="label">Cron expression (minute hour day month weekday)</label>
           <input className="input font-mono" aria-label="cron" value={cron} onChange={(e) => setCron(e.target.value)} />
           <div className="text-[11px] text-emerald-300 mt-1" data-testid="cron-describe">→ runs {describeCron(cron)}</div>
+          {(() => {
+            const f = cron.trim().split(/\s+/); const m = f[0]?.match(/^\*\/(\d+)$/);
+            const every = cron.trim() === '* * * * *' ? 1 : m && f.slice(1).every((x) => x === '*') ? Number(m[1]) : null;
+            if (every === null || every >= 5) return null;
+            return (
+              <div className="text-[11px] text-amber-300 mt-1 rounded border border-amber-500/30 bg-amber-500/10 p-1.5" data-testid="cron-often">
+                ⚠ Every {every === 1 ? 'minute' : `${every} minutes`} is {Math.round(1440 / every)} runs a day. Services like YouTube, X and Discord limit how often they can be called per day, so “every 5–15 minutes” is safer.
+              </div>
+            );
+          })()}
           <div className="flex flex-wrap gap-1 mt-2">
             {PRESETS.map((p) => (
               <button key={p.cron} className="btn text-xs" onClick={() => setCron(p.cron)}>{p.label}</button>

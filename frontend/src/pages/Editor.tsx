@@ -320,7 +320,7 @@ function EditorInner() {
 
       <div className="flex-1 flex min-h-0">
         {/* palette */}
-        <Panel side="left" storageKey="palette" defaultWidth={190} min={150} max={420} title="Add steps">
+        <Panel side="left" storageKey="palette" defaultWidth={window.innerWidth < 1200 ? 160 : 190} defaultCollapsed={window.innerWidth < 1050} min={150} max={420} title="Add steps">
         <div className="p-3 space-y-2">
           <div className="text-xs font-semibold text-slate-400 uppercase">Add node</div>
           {(Object.keys(NODE_DEFS) as NodeType[]).filter((t) => t !== 'trigger').map((t) => (
@@ -388,7 +388,7 @@ function EditorInner() {
         </div>
 
         {/* inspector */}
-        <Panel side="right" storageKey="inspector" defaultWidth={340} min={280} max={760} title="Step settings">
+        <Panel side="right" storageKey="inspector" defaultWidth={window.innerWidth < 1200 ? 300 : 340} min={280} max={760} title="Step settings">
           <Inspector node={selNode as any} onChange={patchSelected} onDelete={deleteSelected} upstream={upstream} workflowId={id} />
         </Panel>
       </div>

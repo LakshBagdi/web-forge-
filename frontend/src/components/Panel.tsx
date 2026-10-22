@@ -3,17 +3,17 @@ import { ReactNode, useEffect, useRef, useState } from 'react';
 function read(key: string, fallback: number) {
   try { const v = Number(localStorage.getItem(key)); return Number.isFinite(v) && v > 0 ? v : fallback; } catch { return fallback; }
 }
-function readBool(key: string) { try { return localStorage.getItem(key) === '1'; } catch { return false; } }
+function readBool(key: string, fallback = false) { try { const v = localStorage.getItem(key); return v === null ? fallback : v === '1'; } catch { return fallback; } }
 
 /**
  * A side panel you can drag wider/narrower (drag the thin bar on its inner edge; double-click it to reset)
  * and collapse to a slim strip. It always scrolls when its content is taller than the window.
  * Width and collapsed state are remembered per `storageKey`.
  */
-export default function Panel({ side, storageKey, defaultWidth, min = 160, max = 720, title, noScroll = false, children }:
-  { side: 'left' | 'right'; storageKey: string; defaultWidth: number; min?: number; max?: number; title: string; noScroll?: boolean; children: ReactNode }) {
+export default function Panel({ side, storageKey, defaultWidth, min = 160, max = 720, title, noScroll = false, defaultCollapsed = false, children }:
+  { side: 'left' | 'right'; storageKey: string; defaultWidth: number; defaultCollapsed?: boolean; min?: number; max?: number; title: string; noScroll?: boolean; children: ReactNode }) {
   const [width, setWidth] = useState(() => Math.min(max, Math.max(min, read(`ff_w_${storageKey}`, defaultWidth))));
-  const [collapsed, setCollapsed] = useState(() => readBool(`ff_c_${storageKey}`));
+  const [collapsed, setCollapsed] = useState(() => readBool(`ff_c_${storageKey}`, defaultCollapsed));
   const drag = useRef<{ x: number; w: number } | null>(null);
 
   useEffect(() => { try { localStorage.setItem(`ff_w_${storageKey}`, String(width)); } catch { /* storage blocked */ } }, [width, storageKey]);
