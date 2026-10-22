@@ -113,4 +113,4 @@ call it.
 ---
 
 ## 👥 Squad — Web Forge 2026
-Built in a 12-hour sprint for Zenith MANIT Bhopal.
+Built in a 12-hour sprint for Zenith MANIT Bhopal. online competition
