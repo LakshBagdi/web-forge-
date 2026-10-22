@@ -20,7 +20,10 @@ if (!dbOk || !redisOk) { console.log(c.yellow('\nFix the ✗ item(s) above, then
 for (const [port, name] of [[bp, 'backend'], [5173, 'frontend']]) {
   if (await portOpen(port)) {
     console.log(c.red(`✗ Port ${port} is already in use — an older copy of the ${name} is probably still running.`));
-    console.log(`  Stop it:  ${c.bold(`fuser -k ${port}/tcp`)}   (or close the other terminal), then run  npm run dev  again.`);
+    console.log('  Stop old copies, then run  npm run dev  again:');
+    console.log(c.bold('    sudo fuser -k 4000/tcp 5173/tcp'));
+    console.log(c.dim('  If that finds nothing:  pkill -f vite ; pkill -f tsx'));
+    console.log(c.dim(`  Still busy? It is running on Windows: in cmd run  netstat -ano | findstr :${port}  then  taskkill /PID <number> /F`));
     process.exit(3);
   }
 }
