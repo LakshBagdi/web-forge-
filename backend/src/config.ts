@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import crypto from 'node:crypto';
 
 function bool(v: string | undefined, d = false) {
   if (v === undefined || v === '') return d;
@@ -13,34 +14,43 @@ function list(v: string | undefined) {
 }
 
 const isProd = process.env.NODE_ENV === 'production';
+
 const jwtSecret = process.env.JWT_SECRET || '';
 if (isProd && jwtSecret.length < 24) {
-  throw new Error('JWT_SECRET must be set to a long random value in production');
+  throw new Error('JWT_SECRET must be a long random value in production');
+}
+
+/** Derive a 32-byte key from CREDENTIAL_KEY (accepts base64, hex, or raw passphrase). */
+function credentialKey(): Buffer {
+  const raw = process.env.CREDENTIAL_KEY || '';
+  if (!raw) {
+    if (isProd) throw new Error('CREDENTIAL_KEY must be set in production');
+    // Deterministic dev key so restarts can still decrypt dev data. Never used in prod.
+    return crypto.createHash('sha256').update('flowforge-dev-key').digest();
+  }
+  for (const enc of ['base64', 'hex'] as const) {
+    try {
+      const b = Buffer.from(raw, enc);
+      if (b.length === 32) return b;
+    } catch { /* try next */ }
+  }
+  // Fall back to hashing an arbitrary passphrase to 32 bytes.
+  return crypto.createHash('sha256').update(raw).digest();
 }
 
 export const config = {
   port: int(process.env.PORT, 4000),
   isProd,
-  databaseUrl: process.env.DATABASE_URL || 'postgres://vs:vs@localhost:5432/vulnsight',
-  jwtSecret: jwtSecret || 'dev-only-insecure-secret-change-me',
+  databaseUrl: process.env.DATABASE_URL || 'postgres://vs:vs@localhost:5432/flowforge',
+  redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
+  jwtSecret: jwtSecret || 'dev-only-insecure-secret',
   corsOrigins: list(process.env.CORS_ORIGINS),
-  labTargets: list(process.env.LAB_TARGETS),
-  // Hard-disabled in production regardless of env, so a misconfiguration can't open SSRF.
-  allowPrivateTargets: !isProd && bool(process.env.ALLOW_PRIVATE_TARGETS),
-  scansPerHourPerUser: int(process.env.SCANS_PER_HOUR_PER_USER, 12),
-  maxConcurrentScans: int(process.env.MAX_CONCURRENT_SCANS, 3),
-  scanRequestBudget: int(process.env.SCAN_REQUEST_BUDGET, 300),
-  scanTimeoutMs: int(process.env.SCAN_TIMEOUT_MS, 180_000),
-  requestTimeoutMs: 8_000,
-  maxBodyBytes: 512 * 1024,
-  llm: {
-    provider: (process.env.LLM_PROVIDER || 'gemini').toLowerCase() as 'gemini' | 'openai' | 'anthropic',
-    apiKey: process.env.LLM_API_KEY || '',
-    model: process.env.LLM_MODEL || '',
-  },
-  zap: {
-    url: (process.env.ZAP_API_URL || '').replace(/\/$/, ''),
-    key: process.env.ZAP_API_KEY || '',
-  },
-  userAgent: 'VulnSight-Auditor/1.0 (+authorized-security-scan)',
+  credentialKey: credentialKey(),
+  // Hard-off in production regardless of env value, so a slip can't open SSRF.
+  allowPrivateEgress: !isProd && bool(process.env.ALLOW_PRIVATE_EGRESS),
+  egressAllowlist: list(process.env.EGRESS_ALLOWLIST),
+  maxStepsPerRun: int(process.env.MAX_STEPS_PER_RUN, 100),
+  stepTimeoutMs: int(process.env.STEP_TIMEOUT_MS, 15_000),
+  maxHttpResponseBytes: int(process.env.MAX_HTTP_RESPONSE_BYTES, 1024 * 1024),
+  runConcurrency: int(process.env.RUN_CONCURRENCY, 5),
 };
