@@ -1,0 +1,57 @@
+/**
+ * Execution context + safe template resolution.
+ *
+ * Templates use {{ path }} syntax and read ONLY from the run context
+ * (trigger input, prior step outputs, workflow variables). process.env and the
+ * host are never exposed, so a workflow can't read server secrets through templates.
+ */
+
+export interface ExecContext {
+  trigger: { input: any };
+  input: any; // alias for trigger.input
+  steps: Record<string, { output: any; status: string }>;
+  vars: Record<string, any>;
+}
+
+export function getPath(obj: any, path: string): any {
+  if (!path) return obj;
+  const parts = path.split('.').map((p) => p.trim()).filter(Boolean);
+  let cur = obj;
+  for (const p of parts) {
+    if (cur == null) return undefined;
+    // support array index like items.0
+    cur = cur[p];
+  }
+  return cur;
+}
+
+const TEMPLATE_RE = /\{\{\s*([^}]+?)\s*\}\}/g;
+
+/** Resolve a single operand/path string against the context. */
+export function resolveRef(ref: string, ctx: ExecContext): any {
+  return getPath(ctx, ref);
+}
+
+/**
+ * Resolve templates in any JSON-like value (string, object, array).
+ * - A string that is exactly one template returns the raw resolved value.
+ * - A string with embedded templates returns an interpolated string.
+ */
+export function resolveTemplates(value: any, ctx: ExecContext): any {
+  if (typeof value === 'string') {
+    const exact = value.match(/^\{\{\s*([^}]+?)\s*\}\}$/);
+    if (exact) return resolveRef(exact[1], ctx);
+    return value.replace(TEMPLATE_RE, (_m, expr) => {
+      const v = resolveRef(String(expr), ctx);
+      if (v == null) return '';
+      return typeof v === 'object' ? JSON.stringify(v) : String(v);
+    });
+  }
+  if (Array.isArray(value)) return value.map((v) => resolveTemplates(v, ctx));
+  if (value && typeof value === 'object') {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) out[k] = resolveTemplates(v, ctx);
+    return out;
+  }
+  return value;
+}

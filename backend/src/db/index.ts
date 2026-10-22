@@ -22,22 +22,13 @@ export async function one<T extends QueryResultRow = any>(text: string, params: 
 }
 
 export async function migrate() {
-  const file = path.join(__dirname, 'schema.sql');
-  const sql = fs.readFileSync(file, 'utf8');
-  await pool.query(sql);
-  // Any scan still "running" after a restart was interrupted.
+  const candidates = [path.join(__dirname, 'schema.sql'), path.join(process.cwd(), 'src/db/schema.sql')];
+  const file = candidates.find((f) => fs.existsSync(f));
+  if (!file) throw new Error('schema.sql not found');
+  await pool.query(fs.readFileSync(file, 'utf8'));
+  // Any run left mid-flight by a restart is marked failed so it can be retried cleanly.
   await pool.query(
-    `UPDATE scans SET status='failed', error='Interrupted by server restart', finished_at=now()
+    `UPDATE runs SET status='failed', error='Interrupted by server restart', finished_at=now()
      WHERE status IN ('running','queued')`,
   );
-}
-
-export async function audit(userId: string | null, action: string, subject?: string, meta: object = {}, ip?: string) {
-  try {
-    await pool.query('INSERT INTO audit_log(user_id, action, subject, meta, ip) VALUES ($1,$2,$3,$4,$5)', [
-      userId, action, subject ?? null, JSON.stringify(meta), ip ?? null,
-    ]);
-  } catch {
-    /* audit must never break a request */
-  }
 }
