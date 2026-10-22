@@ -106,7 +106,7 @@ export default function BodyEditor({ cfg, set, upstream }: { cfg: any; set: (p: 
               <div className="flex gap-1"><input className="input flex-1 min-w-0 text-xs" placeholder="Role ID (to tag a whole role)" value={roleId} onChange={(e) => setRoleId(e.target.value.replace(/\D/g, ''))} />
                 <button className="btn text-xs" disabled={!roleId} onClick={() => { insert(`<@&${roleId}>`); setRoleId(''); }}>Tag role</button></div>
               <Tip title="How do I tag someone on Discord?">
-                <p><b>Everyone:</b> click <b>@everyone</b> (or <b>@here</b> for people online). It only pings if your Discord channel lets webhooks mention everyone.</p>
+                <p><b>Everyone:</b> click <b>@everyone</b> (or <b>@here</b> for people online). FlowForge tells Discord mentions are allowed, so it really pings (members still need notifications on for that channel).</p>
                 <p><b>One person:</b> Discord → Settings → Advanced → turn on <b>Developer Mode</b>. Then right-click the person → <b>Copy User ID</b> and paste it above. Roles: Server Settings → Roles → right-click the role → Copy Role ID.</p>
               </Tip>
             </div>

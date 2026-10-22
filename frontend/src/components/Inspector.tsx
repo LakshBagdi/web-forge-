@@ -188,8 +188,8 @@ export default function Inspector({ node, onChange, onDelete, upstream = [], wor
           <p className="text-xs text-slate-500">Connect the green handle for the true branch, red for false.</p>
           <Tip title="What is a Condition? (examples)">
             <p>A Condition asks a yes/no question and sends the run down the <b>green</b> (yes) or <b>red</b> (no) path.</p>
-            <p><b>Example:</b> only post big payments → Left <span className="font-mono">input.amount</span>, Operator “is greater than”, Right <span className="font-mono">1000</span>. Green → send alert. Red → do nothing.</p>
-            <p><b>Example:</b> only continue if the website answered OK → Left <span className="font-mono">steps.http1.output.status</span>, “equals”, Right <span className="font-mono">200</span>.</p>
+            <p><b>Example:</b> only post big payments → Left <span className="font-mono">input.amount</span>, Operator “&gt; greater”, Right <span className="font-mono">1000</span>. Green → send alert. Red → do nothing.</p>
+            <p><b>Example:</b> only continue if the website answered OK → Left <span className="font-mono">steps.http1.output.status</span>, “= equals”, Right <span className="font-mono">200</span>.</p>
           </Tip>
         </>
       )}
