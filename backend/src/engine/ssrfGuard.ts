@@ -77,6 +77,11 @@ const V6_BLOCKS: Range[] = [
   cidr('fc00::', 7, 'unique-local', true),
   cidr('fe80::', 10, 'link-local', true),
   cidr('ff00::', 8, 'multicast', true),
+  cidr('64:ff9b::', 96, 'nat64', true),   // can embed any IPv4, incl. 127.0.0.1 / metadata
+  cidr('2002::', 16, '6to4', true),       // embeds an IPv4 in bits 16-48
+  cidr('2001::', 32, 'teredo', true),
+  cidr('100::', 64, 'discard', true),
+  cidr('::ffff:0:0:0', 96, 'siit', true),  // IPv4-translated range, can embed any IPv4
 ];
 
 export function classifyIp(ip: string): { blocked: boolean; label?: string } {
@@ -86,9 +91,13 @@ export function classifyIp(ip: string): { blocked: boolean; label?: string } {
     return { blocked: false };
   }
   if (net.isIPv6(ip)) {
-    // IPv4-mapped: classify the embedded v4
-    const m = ip.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-    if (m) return classifyIp(m[1]);
+    // Decode IPv4 embedded in IPv6 in EVERY spelling (::ffff:127.0.0.1, ::ffff:7f00:1,
+    // 0:0:0:0:0:ffff:7f00:1, and deprecated IPv4-compatible ::7f00:1) and judge the IPv4.
+    const bytes = expandIPv6(ip);
+    const first10Zero = bytes.slice(0, 10).every((b) => b === 0);
+    const mapped = first10Zero && bytes[10] === 0xff && bytes[11] === 0xff;
+    const compat = first10Zero && bytes[10] === 0 && bytes[11] === 0 && bytes.slice(12).some((b) => b !== 0) && !(bytes.slice(12, 15).every((b) => b === 0) && bytes[15] === 1);
+    if (mapped || compat) return classifyIp(bytes.slice(12).join('.'));
     const n = ipToBigInt(ip);
     for (const b of V6_BLOCKS) if (n >= b.start && n <= b.end) return { blocked: true, label: b.label };
     return { blocked: false };
@@ -117,7 +126,7 @@ export async function resolveSafeTarget(rawUrl: string): Promise<ResolvedTarget>
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new EgressBlockedError(`Blocked protocol: ${url.protocol}`);
   }
-  const host = url.hostname.toLowerCase();
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, ''); // strip IPv6 brackets so literals are really classified
   const port = url.port ? Number(url.port) : url.protocol === 'https:' ? 443 : 80;
 
   const hostport = url.port ? `${host}:${port}` : host;
