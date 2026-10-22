@@ -157,4 +157,4 @@ npm run test:ssrf   # 28 IP-classification cases (IPv4, IPv6, IPv4-mapped/NAT64/
 ---
 
 ## 👥 Squad — Web Forge 2026
-Built in a 12-hour sprint for Zenith MANIT Bhopal. online competition ORZ ORZ  
+Built in a 12-hour sprint for Zenith MANIT Bhopal. online competition 2026 ORZ ORZ  
