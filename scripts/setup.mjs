@@ -1,5 +1,5 @@
 // One-time setup:  npm run setup      (from the project's top folder)
-// Installs backend + frontend packages, creates backend/.env with fresh secrets, and checks Postgres + Redis.
+// Installs backend + frontend packages, creates backend/.env (if missing), and checks Postgres + Redis.
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -26,10 +26,11 @@ for (const dir of ['backend', 'frontend']) {
 const envFile = path.join(root, 'backend', '.env');
 if (!fs.existsSync(envFile)) {
   const example = fs.readFileSync(path.join(root, 'backend', '.env.example'), 'utf8')
-    .replace(/^JWT_SECRET=.*$/m, `JWT_SECRET=${crypto.randomBytes(48).toString('base64url')}`)
-    .replace(/^CREDENTIAL_KEY=.*$/m, `CREDENTIAL_KEY=${crypto.randomBytes(32).toString('base64')}`);
+    // Only the login-session secret is randomised. CREDENTIAL_KEY stays empty on purpose: in development the app then uses
+    // a fixed key, so logins you already saved (X, Google…) keep working after setup. Set your own key before deploying.
+    .replace(/^JWT_SECRET=.*$/m, `JWT_SECRET=${crypto.randomBytes(48).toString('base64url')}`);
   fs.writeFileSync(envFile, example);
-  console.log(c.green('\n✓ Created backend/.env with fresh secrets (keep this file private).'));
+  console.log(c.green('\n✓ Created backend/.env (keep this file private). Saved logins from before keep working.'));
 } else {
   console.log(c.green('\n✓ backend/.env already exists — left as it is.'));
 }

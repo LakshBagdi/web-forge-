@@ -67,7 +67,7 @@ React + Vite + TypeScript + React Flow        Node + Express + TypeScript
 Prereqs: Node 18+, Postgres and Redis running (Linux/WSL: `sudo service postgresql start` and `sudo service redis-server start`).
 
 ```bash
-npm run setup     # once: installs packages, creates backend/.env with fresh secrets, checks Postgres + Redis
+npm run setup     # once: installs packages, creates backend/.env (if missing), checks Postgres + Redis
 npm run dev       # every time: starts backend (:4000) and frontend (:5173) together; Ctrl+C stops both
 ```
 
