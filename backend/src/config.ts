@@ -48,7 +48,8 @@ export const config = {
   credentialKey: credentialKey(),
   // Hard-off in production regardless of env value, so a slip can't open SSRF.
   allowPrivateEgress: !isProd && bool(process.env.ALLOW_PRIVATE_EGRESS),
-  egressAllowlist: list(process.env.EGRESS_ALLOWLIST),
+  // Dev default: allow the bundled mock API so demos work without a .env. Production default stays empty.
+  egressAllowlist: list(process.env.EGRESS_ALLOWLIST ?? (isProd ? '' : `localhost:${int(process.env.PORT, 4000)},127.0.0.1:${int(process.env.PORT, 4000)}`)),
   maxStepsPerRun: int(process.env.MAX_STEPS_PER_RUN, 100),
   stepTimeoutMs: int(process.env.STEP_TIMEOUT_MS, 15_000),
   maxHttpResponseBytes: int(process.env.MAX_HTTP_RESPONSE_BYTES, 1024 * 1024),
