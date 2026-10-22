@@ -16,12 +16,12 @@ export default function Credentials() {
 
   const fieldSpec: Record<string, string[]> = {
     bearer: ['token'], basic: ['username', 'password'], api_key: ['header', 'key'], header: ['name', 'value'],
-    oauth2: ['token_url', 'client_id', 'client_secret', 'refresh_token', 'scope'],
+    oauth2: ['token_url', 'client_id', 'client_secret', 'refresh_token', 'scope', 'client_auth'],
   };
   const SECRET = ['token', 'password', 'key', 'value', 'client_secret', 'refresh_token'];
   const PRESETS: Record<string, Record<string, string>> = {
-    google: { token_url: 'https://oauth2.googleapis.com/token', scope: '' },
-    x: { token_url: 'https://api.twitter.com/2/oauth2/token', scope: '' },
+    google: { token_url: 'https://oauth2.googleapis.com/token', client_auth: 'body' },
+    x: { token_url: 'https://api.twitter.com/2/oauth2/token', client_auth: 'basic' },
   };
   const changeType = (t: (typeof TYPES)[number]) => {
     setType(t);
@@ -60,7 +60,7 @@ export default function Credentials() {
         )}
         <div className="grid grid-cols-2 gap-2">
           {fieldSpec[type].map((f) => (
-            <div key={f}><label className="label">{f}</label>
+            <div key={f}><label className="label">{f}{f === 'client_auth' ? ' (body or basic — X needs basic)' : f === 'scope' ? ' (optional)' : ''}</label>
               <input className="input" type={SECRET.includes(f) ? 'password' : 'text'} autoComplete="off" value={fields[f] ?? ''} onChange={(e) => setFields({ ...fields, [f]: e.target.value })} />
             </div>
           ))}
